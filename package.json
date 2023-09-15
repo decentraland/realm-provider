@@ -3,12 +3,14 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "start": "node --trace-warnings --abort-on-uncaught-exception --unhandled-rejections=strict dist/index.js",
-    "test": "jest --forceExit --detectOpenHandles --coverage --verbose"
+    "test": "jest --forceExit --detectOpenHandles --coverage --verbose",
+    "lint:check": "eslint '**/*.{js,ts}'"
   },
   "devDependencies": {
     "@types/node": "^20.2.5",
     "@well-known-components/test-helpers": "^1.5.0",
-    "typescript": "^4.8.3"
+    "typescript": "^4.8.3",
+    "@dcl/eslint-config": "^1.1.2"
   },
   "prettier": {
     "printWidth": 120,
@@ -19,6 +21,10 @@
     "@well-known-components/http-server": "^1.1.6-20220927190058.commit-2dfb235",
     "@well-known-components/interfaces": "^1.4.1",
     "@well-known-components/logger": "^3.1.2",
-    "@well-known-components/metrics": "^2.0.1-20220909150423.commit-8f7e5bc"
+    "@well-known-components/metrics": "^2.0.1-20220909150423.commit-8f7e5bc",
+    "@well-known-components/fetch-component": "^2.0.0",
+    "@dcl/protocol": "https://sdk-team-cdn.decentraland.org/@dcl/protocol/branch//dcl-protocol-1.0.0-6175714256.commit-f75e4ff.tgz",
+    "eth-connect": "^6.1.0",
+    "lru-cache": "^8.0.4"
   }
 }
