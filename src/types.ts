@@ -1,14 +1,14 @@
-import type { IFetchComponent } from "@well-known-components/http-server"
+import type { IFetchComponent } from '@well-known-components/http-server'
 import type {
   IConfigComponent,
   ILoggerComponent,
   IHttpServerComponent,
   IBaseComponent,
-  IMetricsComponent,
-} from "@well-known-components/interfaces"
-import { metricDeclarations } from "./metrics"
-import { CatalystProvider } from "./adapters/catalyst-provider"
-import { RealmProvider } from "./adapters/realm-provider"
+  IMetricsComponent
+} from '@well-known-components/interfaces'
+import { metricDeclarations } from './metrics'
+import { CatalystProvider } from './adapters/catalyst-provider'
+import { RealmProvider } from './adapters/realm-provider'
 
 export type GlobalContext = {
   components: BaseComponents

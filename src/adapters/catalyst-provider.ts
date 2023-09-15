@@ -1,6 +1,6 @@
-import RequestManager, { ContractFactory, HTTPProvider, bytesToHex } from "eth-connect"
-import { AppComponents } from "../types"
-import { createLowerCaseKeysCache } from "./lowercase-keys-cache"
+import RequestManager, { ContractFactory, HTTPProvider, bytesToHex } from 'eth-connect'
+import { AppComponents } from '../types'
+import { createLowerCaseKeysCache } from './lowercase-keys-cache'
 
 const l1Contracts = {
   mainnet: {
@@ -585,7 +585,10 @@ async function createContract(address: string, provider: HTTPProvider): Promise<
   }
 }
 
-export async function createCatalystProvider({ fetch, logs }: Pick<AppComponents, 'fetch' | 'logs'>): Promise<CatalystProvider> {
+export async function createCatalystProvider({
+  fetch,
+  logs
+}: Pick<AppComponents, 'fetch' | 'logs'>): Promise<CatalystProvider> {
   const logger = logs.getLogger('realm-provider')
   const opts = { fetch: fetch.fetch }
   const mainnet = new HTTPProvider('https://rpc.decentraland.org/mainnet?project=catalyst-contracts-ci', opts)
@@ -598,9 +601,9 @@ export async function createCatalystProvider({ fetch, logs }: Pick<AppComponents
   async function getCatalysts(network: string) {
     switch (network) {
       case 'mainnet':
-        return getCatalystServersFromDAO(mainnetContract).then(servers => servers.map(s => s.address))
+        return getCatalystServersFromDAO(mainnetContract).then((servers) => servers.map((s) => s.address))
       case 'sepolia':
-        return getCatalystServersFromDAO(sepoliaContract).then(servers => servers.map(s => s.address))
+        return getCatalystServersFromDAO(sepoliaContract).then((servers) => servers.map((s) => s.address))
       default:
         throw new Error(`Network ${network} not supported`)
     }

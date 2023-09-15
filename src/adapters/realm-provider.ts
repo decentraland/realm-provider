@@ -1,8 +1,6 @@
-import { AppComponents } from "../types"
-import {
-  AboutResponse,
-} from "@dcl/protocol/out-ts/decentraland/realm/about.gen"
-import { createLowerCaseKeysCache } from "./lowercase-keys-cache"
+import { AppComponents } from '../types'
+import { AboutResponse } from '@dcl/protocol/out-ts/decentraland/realm/about.gen'
+import { createLowerCaseKeysCache } from './lowercase-keys-cache'
 
 export type RealmProvider = {
   getHealhtyRealms(network: string): Promise<AboutResponse[]>
@@ -12,7 +10,11 @@ function isDefinedAbout(about: AboutResponse | void): about is AboutResponse {
   return !!about
 }
 
-export function createRealmProvider({ catalystProvider, logs, fetch }: Pick<AppComponents, 'catalystProvider' | 'logs' | 'fetch'>): RealmProvider {
+export function createRealmProvider({
+  catalystProvider,
+  logs,
+  fetch
+}: Pick<AppComponents, 'catalystProvider' | 'logs' | 'fetch'>): RealmProvider {
   const logger = logs.getLogger('realm-provider')
 
   async function getCatalystAbout(catalyst: string) {
@@ -37,11 +39,9 @@ export function createRealmProvider({ catalystProvider, logs, fetch }: Pick<AppC
   return {
     async getHealhtyRealms(network: string) {
       const catalysts = await catalystProvider.getCatalysts(network)
-      const abouts = await Promise.all(catalysts.map(catalyst => aboutCache.fetch(catalyst)))
+      const abouts = await Promise.all(catalysts.map((catalyst) => aboutCache.fetch(catalyst)))
       console.log(abouts)
-      return abouts
-        .filter(isDefinedAbout)
-        .filter(about => !!about.comms && about.healthy && about.acceptingUsers)
+      return abouts.filter(isDefinedAbout).filter((about) => !!about.comms && about.healthy && about.acceptingUsers)
     }
   }
 }
