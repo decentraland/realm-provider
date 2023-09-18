@@ -26,6 +26,6 @@
     "@well-known-components/fetch-component": "^2.0.0",
     "@dcl/protocol": "https://sdk-team-cdn.decentraland.org/@dcl/protocol/branch//dcl-protocol-1.0.0-6175714256.commit-f75e4ff.tgz",
     "eth-connect": "^6.1.0",
-    "lru-cache": "^8.0.4"
+    "lru-cache": "^10.0.1"
   }
 }
