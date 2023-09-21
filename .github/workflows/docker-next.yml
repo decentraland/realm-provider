@@ -11,4 +11,5 @@ jobs:
     with:
       service-name: realm-provider
       deployment-environment: dev
+      dockerfile-url: https://raw.githubusercontent.com/decentraland/platform-actions/main/Dockerfile.alpine
     secrets: inherit
