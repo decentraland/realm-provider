@@ -2,7 +2,7 @@ import { HandlerContextWithPath } from '../../types'
 import { getNetworkFromUrl } from '../utils'
 
 export async function realmsHandler(
-  context: Pick<HandlerContextWithPath<'metrics' | 'realmProvider', '/realms'>, 'url' | 'components'>
+  context: Pick<HandlerContextWithPath<'realmProvider', '/realms'>, 'url' | 'components'>
 ) {
   const {
     url,
