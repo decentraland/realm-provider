@@ -61,6 +61,13 @@ export class NotFoundError extends Error {
   }
 }
 
+export class ServiceUnavailableError extends Error {
+  constructor(message: string) {
+    super(message)
+    Error.captureStackTrace(this, this.constructor)
+  }
+}
+
 export enum Network {
   SEPOLIA = 'sepolia',
   MAINNET = 'mainnet'

@@ -1,4 +1,5 @@
-import { HandlerContextWithPath, InvalidRequestError, Network } from '../../types'
+import { HandlerContextWithPath } from '../../types'
+import { getNetworkFromUrl } from '../utils'
 
 export async function realmsHandler(
   context: Pick<HandlerContextWithPath<'metrics' | 'realmProvider', '/realms'>, 'url' | 'components'>
@@ -7,13 +8,7 @@ export async function realmsHandler(
     url,
     components: { realmProvider }
   } = context
-  const value = url.searchParams.get('network') ?? 'mainnet'
-  const network = Network[value as keyof typeof Network]
-
-  if (!network) {
-    throw new InvalidRequestError(`Invalid network ${value}`)
-  }
-
+  const network = getNetworkFromUrl(url)
   return {
     body: {
       servers: await realmProvider.getHealhtyRealms(network)

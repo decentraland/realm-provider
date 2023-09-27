@@ -1,5 +1,5 @@
 import { IHttpServerComponent } from '@well-known-components/interfaces'
-import { InvalidRequestError, NotFoundError } from '../../types'
+import { InvalidRequestError, NotFoundError, ServiceUnavailableError } from '../../types'
 
 export async function errorHandler(
   _ctx: IHttpServerComponent.DefaultContext<object>,
@@ -20,6 +20,15 @@ export async function errorHandler(
     if (error instanceof NotFoundError) {
       return {
         status: 404,
+        body: {
+          error: error.message
+        }
+      }
+    }
+
+    if (error instanceof ServiceUnavailableError) {
+      return {
+        status: 503,
         body: {
           error: error.message
         }

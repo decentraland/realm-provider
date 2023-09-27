@@ -1,5 +1,5 @@
 import { AppComponents, Network } from '../types'
-import { AboutResponse } from '@dcl/protocol/out-ts/decentraland/realm/about.gen'
+import { About } from '@dcl/catalyst-api-specs/lib/client'
 import RequestManager, { bytesToHex, ContractFactory, HTTPProvider } from 'eth-connect'
 import {
   catalystAbi,
@@ -11,7 +11,8 @@ import {
 import LRUCache from 'lru-cache'
 
 export type RealmProvider = {
-  getHealhtyRealms(network: Network): Promise<AboutResponse[]>
+  getHealhtyRealms(network: Network): Promise<About[]>
+  getHealhtyCatalysts(network: Network): Promise<About[]>
 }
 
 async function createContract(address: string, provider: HTTPProvider): Promise<CatalystContract> {
@@ -63,7 +64,7 @@ export async function createRealmProvider({
     }
   })
 
-  const aboutCache = new LRUCache<string, AboutResponse>({
+  const aboutCache = new LRUCache<string, About>({
     max: 20,
     ttl: 1000 * 60 * 60 * 2, // 2 minutes
     fetchMethod: async function (catalyst: string) {
@@ -78,13 +79,28 @@ export async function createRealmProvider({
     }
   })
 
-  async function getHealhtyRealms(network: Network): Promise<AboutResponse[]> {
+  async function getHealhtyCatalysts(network: Network): Promise<About[]> {
     const catalysts = await daoCache.fetch(network)
     if (!catalysts) {
       return []
     }
     const abouts = await Promise.all(catalysts.map((catalyst) => aboutCache.fetch(catalyst)))
-    const result: AboutResponse[] = []
+    const result: About[] = []
+    for (const about of abouts) {
+      if (about && about.healthy && about.acceptingUsers) {
+        result.push(about)
+      }
+    }
+    return result
+  }
+
+  async function getHealhtyRealms(network: Network): Promise<About[]> {
+    const catalysts = await daoCache.fetch(network)
+    if (!catalysts) {
+      return []
+    }
+    const abouts = await Promise.all(catalysts.map((catalyst) => aboutCache.fetch(catalyst)))
+    const result: About[] = []
     for (const about of abouts) {
       if (about && about.comms && about.healthy && about.acceptingUsers) {
         result.push(about)
@@ -94,6 +110,7 @@ export async function createRealmProvider({
   }
 
   return {
-    getHealhtyRealms
+    getHealhtyRealms,
+    getHealhtyCatalysts
   }
 }
