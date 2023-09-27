@@ -1,34 +1,75 @@
-import { AppComponents } from '../types'
+import { AppComponents, Network } from '../types'
 import { AboutResponse } from '@dcl/protocol/out-ts/decentraland/realm/about.gen'
-import { createLowerCaseKeysCache } from './lowercase-keys-cache'
+import RequestManager, { bytesToHex, ContractFactory, HTTPProvider } from 'eth-connect'
+import {
+  catalystAbi,
+  CatalystByIdResult,
+  CatalystContract,
+  getCatalystServersFromDAO,
+  l1Contracts
+} from '@dcl/catalyst-contracts'
+import LRUCache from 'lru-cache'
 
 export type RealmProvider = {
-  getHealhtyRealms(network: string): Promise<AboutResponse[]>
+  getHealhtyRealms(network: Network): Promise<AboutResponse[]>
 }
 
-function isDefinedAbout(about: AboutResponse | void): about is AboutResponse {
-  return !!about
+async function createContract(address: string, provider: HTTPProvider): Promise<CatalystContract> {
+  const requestManager = new RequestManager(provider)
+  const factory = new ContractFactory(requestManager, catalystAbi)
+  const contract = (await factory.at(address)) as any
+  return {
+    async catalystCount(): Promise<number> {
+      return contract.catalystCount()
+    },
+    async catalystIds(i: number): Promise<string> {
+      return contract.catalystIds(i)
+    },
+    async catalystById(catalystId: string): Promise<CatalystByIdResult> {
+      const [id, owner, domain] = await contract.catalystById(catalystId)
+      return { id: '0x' + bytesToHex(id), owner, domain }
+    }
+  }
 }
 
-export function createRealmProvider({
-  catalystProvider,
+export async function createRealmProvider({
   logs,
   fetch
-}: Pick<AppComponents, 'catalystProvider' | 'logs' | 'fetch'>): RealmProvider {
+}: Pick<AppComponents, 'logs' | 'fetch'>): Promise<RealmProvider> {
   const logger = logs.getLogger('realm-provider')
 
-  async function getCatalystAbout(catalyst: string) {
-    const response = await fetch.fetch(`${catalyst}/about`)
-    return await response.json()
-  }
+  const opts = { fetch: fetch.fetch }
+  const mainnet = new HTTPProvider('https://rpc.decentraland.org/mainnet?project=realm-provider', opts)
+  const sepolia = new HTTPProvider('https://rpc.decentraland.org/sepolia?project=realm-provider', opts)
 
-  const aboutCache = createLowerCaseKeysCache<AboutResponse>({
-    max: 10000,
-    ttl: 120000, // 2 minutes
+  const mainnetContract = await createContract(l1Contracts.mainnet.catalyst, mainnet)
+  const sepoliaContract = await createContract(l1Contracts.sepolia.catalyst, sepolia)
+
+  const daoCache = new LRUCache<Network, string[]>({
+    max: 12,
+    ttl: 1000 * 60 * 60 * 24, // 1 day
+    fetchMethod: async function (network: Network, staleValue: string[] | undefined) {
+      try {
+        switch (network) {
+          case 'mainnet':
+            return getCatalystServersFromDAO(mainnetContract).then((servers) => servers.map((s) => s.address))
+          case 'sepolia':
+            return getCatalystServersFromDAO(sepoliaContract).then((servers) => servers.map((s) => s.address))
+        }
+      } catch (err: any) {
+        logger.error(err)
+        return staleValue
+      }
+    }
+  })
+
+  const aboutCache = new LRUCache<string, AboutResponse>({
+    max: 20,
+    ttl: 1000 * 60 * 60 * 2, // 2 minutes
     fetchMethod: async function (catalyst: string) {
       try {
-        const es = await getCatalystAbout(catalyst)
-        return es
+        const response = await fetch.fetch(`${catalyst}/about`)
+        return await response.json()
       } catch (err: any) {
         logger.error(err)
         // If it fails to fetch the about, we assume it's not healthy
@@ -36,12 +77,23 @@ export function createRealmProvider({
       }
     }
   })
-  return {
-    async getHealhtyRealms(network: string) {
-      const catalysts = await catalystProvider.getCatalysts(network)
-      const abouts = await Promise.all(catalysts.map((catalyst) => aboutCache.fetch(catalyst)))
-      console.log(abouts)
-      return abouts.filter(isDefinedAbout).filter((about) => !!about.comms && about.healthy && about.acceptingUsers)
+
+  async function getHealhtyRealms(network: Network): Promise<AboutResponse[]> {
+    const catalysts = await daoCache.fetch(network)
+    if (!catalysts) {
+      return []
     }
+    const abouts = await Promise.all(catalysts.map((catalyst) => aboutCache.fetch(catalyst)))
+    const result: AboutResponse[] = []
+    for (const about of abouts) {
+      if (about && about.comms && about.healthy && about.acceptingUsers) {
+        result.push(about)
+      }
+    }
+    return result
+  }
+
+  return {
+    getHealhtyRealms
   }
 }

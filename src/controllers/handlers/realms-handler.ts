@@ -1,6 +1,5 @@
-import { HandlerContextWithPath } from '../../types'
+import { HandlerContextWithPath, InvalidRequestError, Network } from '../../types'
 
-// handlers arguments only type what they need, to make unit testing easier
 export async function realmsHandler(
   context: Pick<HandlerContextWithPath<'metrics' | 'realmProvider', '/realms'>, 'url' | 'components'>
 ) {
@@ -8,20 +7,16 @@ export async function realmsHandler(
     url,
     components: { realmProvider }
   } = context
-  try {
-    const network = url.searchParams.get('network') ?? 'mainnet'
-    return {
-      body: {
-        servers: await realmProvider.getHealhtyRealms(network)
-      }
-    }
-  } catch (error) {
-    console.error(error)
-    return {
-      status: 500,
-      body: {
-        error: 'Internal Server Error'
-      }
+  const value = url.searchParams.get('network') ?? 'mainnet'
+  const network = Network[value as keyof typeof Network]
+
+  if (!network) {
+    throw new InvalidRequestError(`Invalid network ${value}`)
+  }
+
+  return {
+    body: {
+      servers: await realmProvider.getHealhtyRealms(network)
     }
   }
 }

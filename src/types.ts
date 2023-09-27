@@ -7,7 +7,6 @@ import type {
   IMetricsComponent
 } from '@well-known-components/interfaces'
 import { metricDeclarations } from './metrics'
-import { CatalystProvider } from './adapters/catalyst-provider'
 import { RealmProvider } from './adapters/realm-provider'
 
 export type GlobalContext = {
@@ -21,7 +20,6 @@ export type BaseComponents = {
   server: IHttpServerComponent<GlobalContext>
   fetch: IFetchComponent
   metrics: IMetricsComponent<keyof typeof metricDeclarations>
-  catalystProvider: CatalystProvider
   realmProvider: RealmProvider
 }
 
@@ -48,3 +46,22 @@ export type HandlerContextWithPath<
 >
 
 export type Context<Path extends string = any> = IHttpServerComponent.PathAwareContext<GlobalContext, Path>
+
+export class InvalidRequestError extends Error {
+  constructor(message: string) {
+    super(message)
+    Error.captureStackTrace(this, this.constructor)
+  }
+}
+
+export class NotFoundError extends Error {
+  constructor(message: string) {
+    super(message)
+    Error.captureStackTrace(this, this.constructor)
+  }
+}
+
+export enum Network {
+  SEPOLIA = 'sepolia',
+  MAINNET = 'mainnet'
+}
