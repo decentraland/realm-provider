@@ -31,7 +31,8 @@ export async function aboutMainHandler(
     comms: {
       healthy: mainRealmStatus.healthy,
       protocol: 'v3',
-      usersCount: mainRealmStatus.userCount
+      usersCount: mainRealmStatus.userCount,
+      adapter: mainRealmStatus.adapter
     }
   }
 
