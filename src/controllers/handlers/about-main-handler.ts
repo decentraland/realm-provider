@@ -27,6 +27,10 @@ export async function aboutMainHandler(
 
   const about: About = {
     ...catalystAbout,
+    configurations: {
+      ...catalystAbout.configurations,
+      realmName: mainRealmStatus.realmName
+    },
     healthy: mainRealmStatus.healthy,
     comms: {
       healthy: mainRealmStatus.healthy,

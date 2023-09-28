@@ -8,6 +8,7 @@ export type CoreStatus = {
 
 export type MainRealmStatus = CoreStatus & {
   adapter: string
+  realmName: string
 }
 
 export type MainRealmProviderComponent = {
@@ -22,6 +23,7 @@ export async function createMainRealmProviderComponent({
   const statsUrl = await config.requireString('ARCHIPELAGO_STATS_URL')
   const wsConnectorUrl = await config.requireString('ARCHIPELAGO_WS_CONNECTOR_URL')
   const adapter = `archipelago:archipelago:${wsConnectorUrl}/ws`
+  const realmName = 'main'
 
   const logger = logs.getLogger('main-realm-status')
 
@@ -32,7 +34,7 @@ export async function createMainRealmProviderComponent({
       try {
         const response = await fetch.fetch(`${statsUrl}/core-status`)
         const coreStatus: CoreStatus = await response.json()
-        return { ...coreStatus, adapter }
+        return { ...coreStatus, adapter, realmName }
       } catch (err: any) {
         logger.error(err)
         return staleValue
@@ -57,12 +59,12 @@ export async function createMainRealmProviderComponent({
   async function getStatus(): Promise<MainRealmStatus> {
     const coreStatus = await coreStatusCache.fetch(1)
     if (!coreStatus) {
-      return { healthy: false, userCount: 0, adapter }
+      return { healthy: false, userCount: 0, adapter, realmName }
     }
 
     const wsConnectorStatus = await wsConnectorCache.fetch(1)
     if (!wsConnectorStatus) {
-      return { healthy: false, userCount: coreStatus.userCount, adapter }
+      return { healthy: false, userCount: coreStatus.userCount, adapter, realmName }
     }
     return coreStatus
   }
