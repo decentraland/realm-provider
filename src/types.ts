@@ -1,14 +1,14 @@
-import type { IFetchComponent } from '@well-known-components/http-server'
 import type {
   IConfigComponent,
   ILoggerComponent,
   IHttpServerComponent,
   IBaseComponent,
-  IMetricsComponent
+  IMetricsComponent,
+  IFetchComponent
 } from '@well-known-components/interfaces'
 import { metricDeclarations } from './metrics'
-import { CatalystProvider } from './adapters/catalyst-provider'
-import { RealmProvider } from './adapters/realm-provider'
+import { CatalystsProvider } from './adapters/realm-provider'
+import { MainRealmProviderComponent } from './adapters/main-realm-provider'
 
 export type GlobalContext = {
   components: BaseComponents
@@ -21,8 +21,8 @@ export type BaseComponents = {
   server: IHttpServerComponent<GlobalContext>
   fetch: IFetchComponent
   metrics: IMetricsComponent<keyof typeof metricDeclarations>
-  catalystProvider: CatalystProvider
-  realmProvider: RealmProvider
+  catalystsProvider: CatalystsProvider
+  mainRealmProvider: MainRealmProviderComponent
 }
 
 // components used in runtime
@@ -48,3 +48,29 @@ export type HandlerContextWithPath<
 >
 
 export type Context<Path extends string = any> = IHttpServerComponent.PathAwareContext<GlobalContext, Path>
+
+export class InvalidRequestError extends Error {
+  constructor(message: string) {
+    super(message)
+    Error.captureStackTrace(this, this.constructor)
+  }
+}
+
+export class NotFoundError extends Error {
+  constructor(message: string) {
+    super(message)
+    Error.captureStackTrace(this, this.constructor)
+  }
+}
+
+export class ServiceUnavailableError extends Error {
+  constructor(message: string) {
+    super(message)
+    Error.captureStackTrace(this, this.constructor)
+  }
+}
+
+export enum Network {
+  sepolia = 'sepolia',
+  mainnet = 'mainnet'
+}
