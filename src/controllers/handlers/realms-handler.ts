@@ -2,16 +2,18 @@ import { HandlerContextWithPath } from '../../types'
 import { getNetworkFromUrl } from '../utils'
 
 export async function realmsHandler(
-  context: Pick<HandlerContextWithPath<'realmProvider', '/realms'>, 'url' | 'components'>
+  context: Pick<HandlerContextWithPath<'catalystsProvider', '/realms'>, 'url' | 'components'>
 ) {
   const {
     url,
-    components: { realmProvider }
+    components: { catalystsProvider }
   } = context
   const network = getNetworkFromUrl(url)
+
+  // TODO: add main realm here?
   return {
     body: {
-      servers: await realmProvider.getHealhtyRealms(network)
+      servers: await catalystsProvider.getHealhtyRealms(network)
     }
   }
 }

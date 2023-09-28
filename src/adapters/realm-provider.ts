@@ -10,7 +10,7 @@ import {
 } from '@dcl/catalyst-contracts'
 import { LRUCache } from 'lru-cache'
 
-export type RealmProvider = {
+export type CatalystsProvider = {
   getHealhtyRealms(network: Network): Promise<About[]>
   getHealhtyCatalysts(network: Network): Promise<About[]>
 }
@@ -33,10 +33,10 @@ async function createContract(address: string, provider: HTTPProvider): Promise<
   }
 }
 
-export async function createRealmProvider({
+export async function createCatalystsProvider({
   logs,
   fetch
-}: Pick<AppComponents, 'logs' | 'fetch'>): Promise<RealmProvider> {
+}: Pick<AppComponents, 'logs' | 'fetch'>): Promise<CatalystsProvider> {
   const logger = logs.getLogger('realm-provider')
 
   const opts = { fetch: fetch.fetch }

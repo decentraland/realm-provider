@@ -4,14 +4,17 @@ import { getNetworkFromUrl } from '../utils'
 import { randomInt } from 'crypto'
 
 export async function aboutMainHandler(
-  context: Pick<HandlerContextWithPath<'metrics' | 'realmProvider', '/main/about'>, 'components' | 'url'>
+  context: Pick<
+    HandlerContextWithPath<'metrics' | 'catalystsProvider' | 'mainRealmProvider', '/main/about'>,
+    'components' | 'url'
+  >
 ): Promise<{ status: 200; body: About }> {
   const {
     url,
-    components: { realmProvider }
+    components: { catalystsProvider, mainRealmProvider }
   } = context
   const network = getNetworkFromUrl(url)
-  const catalysts = await realmProvider.getHealhtyCatalysts(network)
+  const catalysts = await catalystsProvider.getHealhtyCatalysts(network)
 
   if (catalysts.length === 0) {
     throw new ServiceUnavailableError('No content catalysts available')
@@ -20,13 +23,15 @@ export async function aboutMainHandler(
   const index = randomInt(catalysts.length)
   const catalystAbout = catalysts[index]
 
+  const mainRealmStatus = await mainRealmProvider.getStatus()
+
   const about: About = {
     ...catalystAbout,
+    healthy: mainRealmStatus.healthy,
     comms: {
-      healthy: true,
+      healthy: mainRealmStatus.healthy,
       protocol: 'v3',
-      // commitHash: 'cad12d2354ce966ec9eeae06400842de4e02395f',
-      usersCount: 0
+      usersCount: mainRealmStatus.userCount
     }
   }
 

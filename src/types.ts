@@ -1,13 +1,14 @@
-import type { IFetchComponent } from '@well-known-components/http-server'
 import type {
   IConfigComponent,
   ILoggerComponent,
   IHttpServerComponent,
   IBaseComponent,
-  IMetricsComponent
+  IMetricsComponent,
+  IFetchComponent
 } from '@well-known-components/interfaces'
 import { metricDeclarations } from './metrics'
-import { RealmProvider } from './adapters/realm-provider'
+import { CatalystsProvider } from './adapters/realm-provider'
+import { MainRealmProviderComponent } from './adapters/main-realm-provider'
 
 export type GlobalContext = {
   components: BaseComponents
@@ -20,7 +21,8 @@ export type BaseComponents = {
   server: IHttpServerComponent<GlobalContext>
   fetch: IFetchComponent
   metrics: IMetricsComponent<keyof typeof metricDeclarations>
-  realmProvider: RealmProvider
+  catalystsProvider: CatalystsProvider
+  mainRealmProvider: MainRealmProviderComponent
 }
 
 // components used in runtime
