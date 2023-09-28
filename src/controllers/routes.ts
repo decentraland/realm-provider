@@ -4,6 +4,7 @@ import { aboutMainHandler } from './handlers/about-main-handler'
 import { errorHandler } from './handlers/error-handler'
 import { pingHandler } from './handlers/ping-handler'
 import { realmsHandler } from './handlers/realms-handler'
+import { statusHandler } from './handlers/status-handler'
 
 // We return the entire router because it will be easier to test than a whole server
 export async function setupRouter(_globalContext: GlobalContext): Promise<Router<GlobalContext>> {
@@ -11,6 +12,7 @@ export async function setupRouter(_globalContext: GlobalContext): Promise<Router
   router.use(errorHandler)
 
   router.get('/ping', pingHandler)
+  router.get('/status', statusHandler)
   router.get('/realms', realmsHandler)
   router.get('/main/about', aboutMainHandler)
 

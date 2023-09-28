@@ -22,7 +22,7 @@ export async function createMainRealmProviderComponent({
 }: Pick<AppComponents, 'config' | 'fetch' | 'logs'>): Promise<MainRealmProviderComponent> {
   const statsUrl = await config.requireString('ARCHIPELAGO_STATS_URL')
   const wsConnectorUrl = await config.requireString('ARCHIPELAGO_WS_CONNECTOR_URL')
-  const adapter = `archipelago:archipelago:${wsConnectorUrl}/ws`
+  const adapter = `archipelago:archipelago:${wsConnectorUrl.replace(/^http/, 'ws')}/ws`
   const realmName = 'main'
 
   const logger = logs.getLogger('main-realm-status')
