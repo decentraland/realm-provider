@@ -8,7 +8,7 @@ import {
   getCatalystServersFromDAO,
   l1Contracts
 } from '@dcl/catalyst-contracts'
-import LRUCache from 'lru-cache'
+import { LRUCache } from 'lru-cache'
 
 export type RealmProvider = {
   getHealhtyRealms(network: Network): Promise<About[]>
@@ -52,9 +52,9 @@ export async function createRealmProvider({
     fetchMethod: async function (network: Network, staleValue: string[] | undefined) {
       try {
         switch (network) {
-          case 'mainnet':
+          case Network.mainnet:
             return getCatalystServersFromDAO(mainnetContract).then((servers) => servers.map((s) => s.address))
-          case 'sepolia':
+          case Network.sepolia:
             return getCatalystServersFromDAO(sepoliaContract).then((servers) => servers.map((s) => s.address))
         }
       } catch (err: any) {

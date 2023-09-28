@@ -1,6 +1,7 @@
 import { RealmProvider } from '../../src/adapters/realm-provider'
 import { realmsHandler } from '../../src/controllers/handlers/realms-handler'
 import querystring from 'node:querystring'
+import { Network } from '../../src/types'
 
 describe('events handler unit test', () => {
   function executeHandler(realmProvider: RealmProvider, qs: any) {
@@ -8,13 +9,25 @@ describe('events handler unit test', () => {
     return realmsHandler({ components: { realmProvider }, url })
   }
 
-  it('should register and unregister the client', async () => {
-    await executeHandler(eventsDispatcher)
+  it('should use mainnet if network is not provided', async () => {
+    const realms = {
+      getHealhtyRealms: jest.fn(),
+      getHealhtyCatalysts: jest.fn()
+    }
 
-    expect(eventsDispatcher.addClient).toHaveBeenCalledTimes(1)
+    await executeHandler(realms, {})
 
-    clientStream.destroy()
+    expect(realms.getHealhtyRealms).toHaveBeenCalledWith(Network.mainnet)
+  })
 
-    expect(eventsDispatcher.removeClient).toHaveBeenCalledWith('session1')
+  it('should use network if provided', async () => {
+    const realms = {
+      getHealhtyRealms: jest.fn(),
+      getHealhtyCatalysts: jest.fn()
+    }
+
+    await executeHandler(realms, { network: 'sepolia' })
+
+    expect(realms.getHealhtyRealms).toHaveBeenCalledWith(Network.sepolia)
   })
 })

@@ -69,6 +69,6 @@ export class ServiceUnavailableError extends Error {
 }
 
 export enum Network {
-  SEPOLIA = 'sepolia',
-  MAINNET = 'mainnet'
+  sepolia = 'sepolia',
+  mainnet = 'mainnet'
 }
