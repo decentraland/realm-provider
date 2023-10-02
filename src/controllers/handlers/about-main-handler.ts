@@ -40,6 +40,10 @@ export async function aboutMainHandler(
     }
   }
 
+  if (about.bff) {
+    about.bff.userCount = mainRealmStatus.userCount
+  }
+
   return {
     status: 200,
     body: about
