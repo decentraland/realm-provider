@@ -7,6 +7,7 @@ import { metricDeclarations } from './metrics'
 import { createCatalystsProvider } from './adapters/realm-provider'
 import { createFetchComponent } from '@well-known-components/fetch-component'
 import { createMainRealmProviderComponent } from './adapters/main-realm-provider'
+import { createContentComponent } from './adapters/content'
 
 // Initialize all the components of the app
 export async function initComponents(): Promise<AppComponents> {
@@ -25,6 +26,7 @@ export async function initComponents(): Promise<AppComponents> {
   const fetch = createFetchComponent()
   const catalystsProvider = await createCatalystsProvider({ logs, fetch, config })
   const mainRealmProvider = await createMainRealmProviderComponent({ logs, fetch, config })
+  const content = await createContentComponent({ fetch, config })
 
   await instrumentHttpServerWithMetrics({ metrics, server, config })
 
@@ -36,6 +38,7 @@ export async function initComponents(): Promise<AppComponents> {
     fetch,
     metrics,
     catalystsProvider,
-    mainRealmProvider
+    mainRealmProvider,
+    content
   }
 }
