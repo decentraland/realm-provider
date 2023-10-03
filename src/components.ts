@@ -23,7 +23,7 @@ export async function initComponents(): Promise<AppComponents> {
   )
   const statusChecks = await createStatusCheckComponent({ server, config })
   const fetch = createFetchComponent()
-  const catalystsProvider = await createCatalystsProvider({ logs, fetch })
+  const catalystsProvider = await createCatalystsProvider({ logs, fetch, config })
   const mainRealmProvider = await createMainRealmProviderComponent({ logs, fetch, config })
 
   await instrumentHttpServerWithMetrics({ metrics, server, config })

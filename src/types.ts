@@ -69,8 +69,3 @@ export class ServiceUnavailableError extends Error {
     Error.captureStackTrace(this, this.constructor)
   }
 }
-
-export enum Network {
-  sepolia = 'sepolia',
-  mainnet = 'mainnet'
-}

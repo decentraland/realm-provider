@@ -1,19 +1,44 @@
 import { HandlerContextWithPath } from '../../types'
-import { getNetworkFromUrl } from '../utils'
+
+type Realm = {
+  serverName: string
+  url: string
+  usersCount: number
+}
 
 export async function realmsHandler(
-  context: Pick<HandlerContextWithPath<'catalystsProvider', '/realms'>, 'url' | 'components'>
-) {
+  context: Pick<
+    HandlerContextWithPath<'catalystsProvider' | 'mainRealmProvider' | 'config', '/realms'>,
+    'components' | 'url'
+  >
+): Promise<{ body: Realm[] }> {
   const {
-    url,
-    components: { catalystsProvider }
+    components: { catalystsProvider, mainRealmProvider, config }
   } = context
-  const network = getNetworkFromUrl(url)
 
-  // TODO: add main realm here?
-  return {
-    body: {
-      servers: await catalystsProvider.getHealhtyRealms(network)
+  const baseUrl = (
+    (await config.getString('HTTP_BASE_URL')) || `${context.url.protocol}//${context.url.host}`
+  ).toString()
+
+  const catalysts = await catalystsProvider.getHealhtyCatalysts()
+  const realms: Realm[] = []
+
+  for (const { url, about } of catalysts) {
+    if (about.comms && about.configurations.realmName) {
+      realms.push({ serverName: about.configurations.realmName, url, usersCount: about.comms.usersCount || 0 })
     }
+  }
+
+  const mainRealmStatus = await mainRealmProvider.getStatus()
+  if (mainRealmStatus.healthy) {
+    realms.push({
+      serverName: mainRealmStatus.realmName,
+      url: `${baseUrl}/main`,
+      usersCount: mainRealmStatus.userCount
+    })
+  }
+
+  return {
+    body: realms
   }
 }
