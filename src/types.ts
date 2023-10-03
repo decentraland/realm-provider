@@ -9,6 +9,7 @@ import type {
 import { metricDeclarations } from './metrics'
 import { CatalystsProvider } from './adapters/realm-provider'
 import { MainRealmProviderComponent } from './adapters/main-realm-provider'
+import { IContentComponent } from './adapters/content'
 
 export type GlobalContext = {
   components: BaseComponents
@@ -23,6 +24,7 @@ export type BaseComponents = {
   metrics: IMetricsComponent<keyof typeof metricDeclarations>
   catalystsProvider: CatalystsProvider
   mainRealmProvider: MainRealmProviderComponent
+  content: IContentComponent
 }
 
 // components used in runtime
