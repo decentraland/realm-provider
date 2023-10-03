@@ -1,4 +1,4 @@
-import { AppComponents, Network } from '../types'
+import { AppComponents } from '../types'
 import { About } from '@dcl/catalyst-api-specs/lib/client'
 import RequestManager, { bytesToHex, ContractFactory, HTTPProvider } from 'eth-connect'
 import {
@@ -6,13 +6,18 @@ import {
   CatalystByIdResult,
   CatalystContract,
   getCatalystServersFromDAO,
-  l1Contracts
+  l1Contracts,
+  L1Network
 } from '@dcl/catalyst-contracts'
 import { LRUCache } from 'lru-cache'
 
+export type RealmInfo = {
+  about: About
+  url: string
+}
+
 export type CatalystsProvider = {
-  getHealhtyRealms(network: Network): Promise<About[]>
-  getHealhtyCatalysts(network: Network): Promise<About[]>
+  getHealhtyCatalysts(): Promise<RealmInfo[]>
 }
 
 async function createContract(address: string, provider: HTTPProvider): Promise<CatalystContract> {
@@ -35,28 +40,29 @@ async function createContract(address: string, provider: HTTPProvider): Promise<
 
 export async function createCatalystsProvider({
   logs,
-  fetch
-}: Pick<AppComponents, 'logs' | 'fetch'>): Promise<CatalystsProvider> {
+  fetch,
+  config
+}: Pick<AppComponents, 'logs' | 'fetch' | 'config'>): Promise<CatalystsProvider> {
   const logger = logs.getLogger('realm-provider')
 
+  const network: L1Network = ((await config.getString('ETH_NETWORK')) ?? 'mainnet') as L1Network
+  const contracts = l1Contracts[network]
+  if (!contracts) {
+    throw new Error(`Invalid ETH_NETWORK ${network}`)
+  }
+
   const opts = { fetch: fetch.fetch }
-  const mainnet = new HTTPProvider('https://rpc.decentraland.org/mainnet?project=realm-provider', opts)
-  const sepolia = new HTTPProvider('https://rpc.decentraland.org/sepolia?project=realm-provider', opts)
+  const mainnet = new HTTPProvider(`https://rpc.decentraland.org/${network}?project=realm-provider`, opts)
 
-  const mainnetContract = await createContract(l1Contracts.mainnet.catalyst, mainnet)
-  const sepoliaContract = await createContract(l1Contracts.sepolia.catalyst, sepolia)
+  const contract = await createContract(contracts.catalyst, mainnet)
 
-  const daoCache = new LRUCache<Network, string[]>({
+  const daoCache = new LRUCache<number, string[]>({
     max: 12,
     ttl: 1000 * 60 * 60 * 24, // 1 day
-    fetchMethod: async function (network: Network, staleValue: string[] | undefined) {
+    fetchMethod: async function (_: number, staleValue: string[] | undefined) {
       try {
-        switch (network) {
-          case Network.mainnet:
-            return getCatalystServersFromDAO(mainnetContract).then((servers) => servers.map((s) => s.address))
-          case Network.sepolia:
-            return getCatalystServersFromDAO(sepoliaContract).then((servers) => servers.map((s) => s.address))
-        }
+        const servers = await getCatalystServersFromDAO(contract)
+        return servers.map((s) => s.address)
       } catch (err: any) {
         logger.error(err)
         return staleValue
@@ -64,13 +70,14 @@ export async function createCatalystsProvider({
     }
   })
 
-  const aboutCache = new LRUCache<string, About>({
+  const aboutCache = new LRUCache<string, RealmInfo>({
     max: 20,
     ttl: 1000 * 60 * 60 * 2, // 2 minutes
     fetchMethod: async function (catalyst: string) {
       try {
         const response = await fetch.fetch(`${catalyst}/about`)
-        return await response.json()
+        const about = await response.json()
+        return { about, url: catalyst }
       } catch (err: any) {
         logger.error(err)
         // If it fails to fetch the about, we assume it's not healthy
@@ -79,38 +86,22 @@ export async function createCatalystsProvider({
     }
   })
 
-  async function getHealhtyCatalysts(network: Network): Promise<About[]> {
-    const catalysts = await daoCache.fetch(network)
+  async function getHealhtyCatalysts(): Promise<RealmInfo[]> {
+    const catalysts = await daoCache.fetch(1)
     if (!catalysts) {
       return []
     }
-    const abouts = await Promise.all(catalysts.map((catalyst) => aboutCache.fetch(catalyst)))
-    const result: About[] = []
-    for (const about of abouts) {
-      if (about && about.healthy && about.acceptingUsers) {
-        result.push(about)
-      }
-    }
-    return result
-  }
-
-  async function getHealhtyRealms(network: Network): Promise<About[]> {
-    const catalysts = await daoCache.fetch(network)
-    if (!catalysts) {
-      return []
-    }
-    const abouts = await Promise.all(catalysts.map((catalyst) => aboutCache.fetch(catalyst)))
-    const result: About[] = []
-    for (const about of abouts) {
-      if (about && about.comms && about.healthy && about.acceptingUsers) {
-        result.push(about)
+    const catalystsInfo = await Promise.all(catalysts.map((catalyst) => aboutCache.fetch(catalyst)))
+    const result: RealmInfo[] = []
+    for (const info of catalystsInfo) {
+      if (info && info.about && info.about.healthy && info.about.acceptingUsers) {
+        result.push(info)
       }
     }
     return result
   }
 
   return {
-    getHealhtyRealms,
     getHealhtyCatalysts
   }
 }
