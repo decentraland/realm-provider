@@ -3,10 +3,7 @@ import { About } from '@dcl/catalyst-api-specs/lib/client'
 import { randomInt } from 'crypto'
 
 export async function aboutMainHandler(
-  context: Pick<
-    HandlerContextWithPath<'metrics' | 'catalystsProvider' | 'mainRealmProvider', '/main/about'>,
-    'components'
-  >
+  context: Pick<HandlerContextWithPath<'catalystsProvider' | 'mainRealmProvider', '/main/about'>, 'components'>
 ): Promise<{ status: 200; body: About }> {
   const {
     components: { catalystsProvider, mainRealmProvider }
