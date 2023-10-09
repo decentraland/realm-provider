@@ -37,6 +37,7 @@ describe('about main handler unit test', () => {
     expect(body).toEqual({
       configurations: { realmName: 'main' },
       healthy: true,
+      acceptingUsers: true,
       comms: {
         healthy: true,
         protocol: 'v3',

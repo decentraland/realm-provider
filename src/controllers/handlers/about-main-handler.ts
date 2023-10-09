@@ -26,6 +26,7 @@ export async function aboutMainHandler(
       realmName: mainRealmStatus.realmName
     },
     healthy: mainRealmStatus.healthy,
+    acceptingUsers: mainRealmStatus.healthy,
     comms: {
       healthy: mainRealmStatus.healthy,
       protocol: 'v3',
