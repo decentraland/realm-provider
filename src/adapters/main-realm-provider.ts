@@ -1,5 +1,4 @@
 import { AppComponents } from '../types'
-import { LRUCache } from 'lru-cache'
 
 export type CoreStatus = {
   healthy: boolean
