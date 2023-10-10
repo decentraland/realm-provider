@@ -1,5 +1,4 @@
 import { AppComponents } from '../types'
-import { LRUCache } from 'lru-cache'
 
 export type CoreStatus = {
   healthy: boolean
@@ -38,7 +37,6 @@ export async function createMainRealmProviderComponent({
   async function getStatus(): Promise<MainRealmStatus> {
     try {
       const [coreStatus, _connectorStatus] = await Promise.all([fetchCoreStatus(), fetchConnectorStatus])
-      console.log(coreStatus)
       return coreStatus
     } catch (err) {
       return { healthy: false, userCount: 0, adapter, realmName }
