@@ -15,6 +15,7 @@ export type HotSceneInfo = {
   parcels: [number, number][]
   usersTotalCount: number
   realms: Realm[]
+  thumbnail?: string
 }
 
 export type ParcelsResponse = {
@@ -104,7 +105,8 @@ export async function hotScenesHandler(
       baseCoords: getCoords(scene.metadata?.scene.base),
       usersTotalCount: 0,
       realms: [],
-      parcels: scene.metadata?.scene.parcels.map(getCoords)
+      parcels: scene.metadata?.scene.parcels.map(getCoords),
+      thumbnail: content.calculateThumbnail(scene)
     }
 
     const countByRealm = new Map<string, number>()
