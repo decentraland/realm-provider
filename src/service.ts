@@ -20,4 +20,9 @@ export async function main(program: Lifecycle.EntryPointParameters<AppComponents
 
   // start ports: db, listeners, synchronizations, etc
   await startComponents()
+
+  const { catalystsProvider } = components
+
+  // NOTE warm up cache
+  await catalystsProvider.getHealhtyCatalysts()
 }
