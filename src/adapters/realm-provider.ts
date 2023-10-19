@@ -75,7 +75,7 @@ export async function createCatalystsProvider({
     ttl: 1000 * 60 * 60 * 2, // 2 minutes
     fetchMethod: async function (catalyst: string) {
       try {
-        const response = await fetch.fetch(`${catalyst}/about`)
+        const response = await fetch.fetch(`${catalyst}/about`, { timeout: 1000 })
         const about = await response.json()
         return { about, url: catalyst }
       } catch (err: any) {
@@ -91,6 +91,7 @@ export async function createCatalystsProvider({
     if (!catalysts) {
       return []
     }
+
     const catalystsInfo = await Promise.all(catalysts.map((catalyst) => aboutCache.fetch(catalyst)))
     const result: RealmInfo[] = []
     for (const info of catalystsInfo) {

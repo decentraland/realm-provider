@@ -49,7 +49,7 @@ export async function hotScenesHandler(
   const mainRealmStatus = await mainRealmProvider.getStatus()
 
   const parcelPromises = catalysts.map(async ({ url, about }) => {
-    const response = await fetch.fetch(`${url}/stats/parcels`)
+    const response = await fetch.fetch(`${url}/stats/parcels`, { timeout: 1000 })
     if (!about.configurations.realmName) {
       throw new Error(`ignoring ${url} since has no realmName`)
     }
