@@ -5,10 +5,16 @@ export type CoreStatus = {
   userCount: number
 }
 
-export type MainRealmStatus = CoreStatus & {
-  adapter: string
-  realmName: string
+export type ConnectorStatus = {
+  version?: string
+  commitHash?: string
 }
+
+export type MainRealmStatus = CoreStatus &
+  ConnectorStatus & {
+    adapter: string
+    realmName: string
+  }
 
 export type MainRealmProviderComponent = {
   getStatus(): Promise<MainRealmStatus>
@@ -29,15 +35,19 @@ export async function createMainRealmProviderComponent({
     return { ...coreStatus, adapter, realmName }
   }
 
-  async function fetchConnectorStatus(): Promise<void> {
+  async function fetchConnectorStatus(): Promise<ConnectorStatus> {
     const status = await fetch.fetch(`${wsConnectorUrl}/status`)
-    await status.json()
+    const { version, commitHash } = await status.json()
+    return { version, commitHash }
   }
 
   async function getStatus(): Promise<MainRealmStatus> {
     try {
-      const [coreStatus, _connectorStatus] = await Promise.all([fetchCoreStatus(), fetchConnectorStatus])
-      return coreStatus
+      const [coreStatus, connectorStatus] = await Promise.all([fetchCoreStatus(), fetchConnectorStatus()])
+      return {
+        ...coreStatus,
+        ...connectorStatus
+      }
     } catch (err) {
       return { healthy: false, userCount: 0, adapter, realmName }
     }
