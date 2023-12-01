@@ -28,6 +28,8 @@ export async function aboutMainHandler(
     healthy: mainRealmStatus.healthy,
     acceptingUsers: mainRealmStatus.healthy,
     comms: {
+      version: mainRealmStatus.version,
+      commitHash: mainRealmStatus.commitHash,
       healthy: mainRealmStatus.healthy,
       protocol: 'v3',
       usersCount: mainRealmStatus.userCount,
