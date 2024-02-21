@@ -3,7 +3,7 @@ import { About } from '@dcl/catalyst-api-specs/lib/client'
 import { randomInt } from 'crypto'
 
 export async function aboutMainHandler(
-  context: Pick<HandlerContextWithPath<'catalystsProvider' | 'mainRealmProvider', '/main/about'>, 'components'>
+  context: Pick<HandlerContextWithPath<'catalystsProvider' | 'mainRealmProvider', '/main/about'>, 'components' | 'url'>
 ): Promise<{ status: 200; body: About }> {
   const {
     components: { catalystsProvider, mainRealmProvider }
@@ -14,7 +14,16 @@ export async function aboutMainHandler(
     throw new ServiceUnavailableError('No content catalysts available')
   }
 
-  const index = randomInt(catalysts.length)
+  let index = randomInt(catalysts.length)
+
+  const preferredCatalyst = context.url.searchParams.get('catalyst')
+  if (preferredCatalyst) {
+    const preferredCatalystIndex = catalysts.findIndex((catalyst) => catalyst.url === preferredCatalyst)
+    if (preferredCatalystIndex >= 0) {
+      index = preferredCatalystIndex
+    }
+  }
+
   const catalystAbout = catalysts[index].about
 
   const mainRealmStatus = await mainRealmProvider.getStatus()
