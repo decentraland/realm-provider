@@ -22,7 +22,7 @@
     "tabWidth": 2
   },
   "dependencies": {
-    "@dcl/catalyst-api-specs": "https://sdk-team-cdn.decentraland.org/@dcl/catalyst-api-specs/branch/default-realm/dcl-catalyst-api-specs-3.2.4-6381040828.commit-c05cd37.tgz",
+    "@dcl/catalyst-api-specs": "^3.2.5",
     "@dcl/catalyst-contracts": "^4.3.1",
     "@dcl/schemas": "^10.3.0",
     "@well-known-components/env-config-provider": "^1.1.1",
