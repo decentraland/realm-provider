@@ -2,6 +2,8 @@ import { HandlerContextWithPath, ServiceUnavailableError } from '../../types'
 import { About } from '@dcl/catalyst-api-specs/lib/client'
 import { randomInt } from 'crypto'
 
+const BLACKLISTED_CATALYSTS = ['peer.kyllian.me', 'interconnected.online']
+
 export async function aboutMainHandler(
   context: Pick<HandlerContextWithPath<'catalystsProvider' | 'mainRealmProvider', '/main/about'>, 'components' | 'url'>
 ): Promise<{ status: 200; body: About }> {
@@ -14,17 +16,22 @@ export async function aboutMainHandler(
     throw new ServiceUnavailableError('No content catalysts available')
   }
 
-  let index = randomInt(catalysts.length)
+  const filteredCatalysts = catalysts.filter(
+    (catalyst: any) =>
+      !BLACKLISTED_CATALYSTS.some((blackListedCatalyst) => catalyst.url.toLowerCase().includes(blackListedCatalyst))
+  )
+
+  let index = randomInt(filteredCatalysts.length)
 
   const preferredCatalyst = context.url.searchParams.get('catalyst')
   if (preferredCatalyst) {
-    const preferredCatalystIndex = catalysts.findIndex((catalyst) => catalyst.url === preferredCatalyst)
+    const preferredCatalystIndex = filteredCatalysts.findIndex((catalyst) => catalyst.url === preferredCatalyst)
     if (preferredCatalystIndex >= 0) {
       index = preferredCatalystIndex
     }
   }
 
-  const catalystAbout = catalysts[index].about
+  const catalystAbout = filteredCatalysts[index].about
 
   const mainRealmStatus = await mainRealmProvider.getStatus()
 
