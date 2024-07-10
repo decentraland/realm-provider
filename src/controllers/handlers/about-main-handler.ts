@@ -2,7 +2,7 @@ import { HandlerContextWithPath, ServiceUnavailableError } from '../../types'
 import { About } from '@dcl/catalyst-api-specs/lib/client'
 import { randomInt } from 'crypto'
 
-const BLACKLISTED_CATALYSTS = ['peer.kyllian.me', 'interconnected.online']
+const BLACKLISTED_CATALYSTS = ['interconnected.online']
 
 export async function aboutMainHandler(
   context: Pick<HandlerContextWithPath<'catalystsProvider' | 'mainRealmProvider', '/main/about'>, 'components' | 'url'>
