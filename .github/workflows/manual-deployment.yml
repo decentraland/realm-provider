@@ -3,6 +3,14 @@ name: Manual deployment
 on:
   workflow_dispatch:
     inputs:
+      service-name:
+        required: true
+        type: choice
+        options:
+          - realm-provider
+          - realm-provider-ea
+        default: realm-provider
+        description: Service name
       deployment-environment:
         required: true
         type: choice
@@ -13,14 +21,14 @@ on:
         description: Environment
       tag:
         required: true
-        default: "latest"
+        default: 'latest'
         type: string
-        description: "Docker tag (quay.io)"
+        description: 'Docker tag (quay.io)'
 
 jobs:
   deployment:
-    if: ${{ inputs.deployment-environment }}
-    name: "Deploy to: ${{ inputs.deployment-environment }}"
+    if: ${{ inputs.deployment-environment }} && ${{ inputs.service-name }}
+    name: 'Deploy ${{ inputs.service-name }} to: ${{ inputs.deployment-environment }}'
     runs-on: ubuntu-latest
     environment: ${{ inputs.deployment-environment }}
     steps:
@@ -28,7 +36,7 @@ jobs:
         id: deploy
         uses: decentraland/dcl-deploy-action@main
         with:
-          dockerImage: "quay.io/decentraland/realm-provider:${{ inputs.tag }}"
-          serviceName: "realm-provider"
+          dockerImage: 'quay.io/decentraland/realm-provider:${{ inputs.tag }}'
+          serviceName: ${{ inputs.service-name }}
           env: ${{ inputs.deployment-environment }}
           token: ${{ secrets.GITHUB_TOKEN }}
