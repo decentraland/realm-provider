@@ -2,24 +2,26 @@ import { HandlerContextWithPath, ServiceUnavailableError } from '../../types'
 import { About } from '@dcl/catalyst-api-specs/lib/client'
 import { randomInt } from 'crypto'
 
-const BLACKLISTED_CATALYSTS: [] = []
-
 export async function aboutMainHandler(
-  context: Pick<HandlerContextWithPath<'catalystsProvider' | 'mainRealmProvider', '/main/about'>, 'components' | 'url'>
+  context: Pick<
+    HandlerContextWithPath<'catalystsProvider' | 'mainRealmProvider' | 'config', '/main/about'>,
+    'components' | 'url'
+  >
 ): Promise<{ status: 200; body: About }> {
   const {
-    components: { catalystsProvider, mainRealmProvider }
+    components: { catalystsProvider, mainRealmProvider, config }
   } = context
+  const blacklistedCatalyst = ((await config.getString('BLACKLISTED_CATALYST')) || '').split(';').filter(Boolean)
   const catalysts = await catalystsProvider.getHealhtyCatalysts()
 
   if (catalysts.length === 0) {
     throw new ServiceUnavailableError('No content catalysts available')
   }
 
-  const filteredCatalysts = BLACKLISTED_CATALYSTS.length
+  const filteredCatalysts = blacklistedCatalyst.length
     ? catalysts.filter(
         (catalyst: any) =>
-          !BLACKLISTED_CATALYSTS.some((blackListedCatalyst) => catalyst.url.toLowerCase().includes(blackListedCatalyst))
+          !blacklistedCatalyst.some((blackListedCatalyst) => catalyst.url.toLowerCase().includes(blackListedCatalyst))
       )
     : catalysts
 

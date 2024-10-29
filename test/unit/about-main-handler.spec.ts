@@ -3,6 +3,10 @@ import { MainRealmProviderComponent } from '../../src/adapters/main-realm-provid
 import { aboutMainHandler } from '../../src/controllers/handlers/about-main-handler'
 
 describe('about main handler unit test', () => {
+  let mockedConfig = {
+    getString: jest.fn().mockResolvedValue('')
+  }
+
   function executeHandler(
     catalystsProvider: CatalystsProvider,
     mainRealmProvider: MainRealmProviderComponent,
@@ -12,7 +16,7 @@ describe('about main handler unit test', () => {
     if (catalyst) {
       url = new URL(`http://localhost/main/about?catalyst=${catalyst}`)
     }
-    return aboutMainHandler({ components: { catalystsProvider, mainRealmProvider }, url })
+    return aboutMainHandler({ components: { catalystsProvider, mainRealmProvider, config: mockedConfig as any }, url })
   }
 
   it('should return main realm about', async () => {
@@ -162,5 +166,140 @@ describe('about main handler unit test', () => {
 
     const { body } = await executeHandler(catalysts, mainRealmProvider, 'https://my-catalyst.decentraland.org')
     expect(body.content.publicUrl).not.toEqual('https://my-catalyst.decentraland.org')
+  })
+
+  it('should filter out blacklisted catalysts', async () => {
+    const BLACKLISTED_CATALYSTS = 'https://peer-ec1.decentraland.org'
+    mockedConfig.getString.mockResolvedValue(BLACKLISTED_CATALYSTS)
+
+    const catalysts = {
+      getHealhtyCatalysts: jest.fn().mockResolvedValue([
+        {
+          healthy: true,
+          acceptingUsers: true,
+          about: {
+            content: {
+              publicurl: 'https://peer-ec2.decentraland.org/content'
+            },
+            configurations: {
+              realmName: 'ec2'
+            }
+          },
+          url: 'https://peer-ec2.decentraland.org'
+        },
+        {
+          healthy: true,
+          acceptingUsers: true,
+          about: {
+            content: {
+              publicurl: 'https://peer-ec1.decentraland.org/content'
+            },
+            configurations: {
+              realmName: 'ec1'
+            }
+          },
+          url: 'https://peer-ec1.decentraland.org'
+        }
+      ])
+    }
+
+    const mainRealmProvider = {
+      getStatus: jest.fn().mockResolvedValue({
+        healthy: true,
+        userCount: 100,
+        adapter: 'adapter',
+        realmName: 'main'
+      })
+    }
+
+    const { body } = await executeHandler(catalysts, mainRealmProvider, 'https://peer-ec1.decentraland.org')
+
+    expect(body.configurations.realmName).not.toEqual('https://peer-ec1.decentraland.org')
+    expect(body.content.publicUrl).not.toEqual('https://peer-ec1.decentraland.org/content')
+  })
+
+  it('should not filter out blacklisted catalysts if blacklists is empty', async () => {
+    const BLACKLISTED_CATALYSTS = ''
+    mockedConfig.getString.mockResolvedValue(BLACKLISTED_CATALYSTS)
+
+    const catalysts = {
+      getHealhtyCatalysts: jest.fn().mockResolvedValue([
+        {
+          healthy: true,
+          acceptingUsers: true,
+          about: {
+            configurations: {
+              realmName: 'ec2'
+            }
+          },
+          url: 'https://peer-ec2.decentraland.org'
+        },
+        {
+          healthy: true,
+          acceptingUsers: true,
+          about: {
+            configurations: {
+              realmName: 'ec1'
+            }
+          },
+          url: 'https://peer-ec1.decentraland.org'
+        }
+      ])
+    }
+
+    const mainRealmProvider = {
+      getStatus: jest.fn().mockResolvedValue({
+        healthy: true,
+        userCount: 100,
+        adapter: 'adapter',
+        realmName: 'main'
+      })
+    }
+
+    const { body } = await executeHandler(catalysts, mainRealmProvider, 'https://peer-ec1.decentraland.org')
+
+    expect(body.configurations.realmName).toEqual('main')
+  })
+
+  it('should not filter out blacklisted catalysts if blacklists is undefined', async () => {
+    mockedConfig.getString.mockResolvedValue(undefined)
+
+    const catalysts = {
+      getHealhtyCatalysts: jest.fn().mockResolvedValue([
+        {
+          healthy: true,
+          acceptingUsers: true,
+          about: {
+            configurations: {
+              realmName: 'ec2'
+            }
+          },
+          url: 'https://peer-ec2.decentraland.org'
+        },
+        {
+          healthy: true,
+          acceptingUsers: true,
+          about: {
+            configurations: {
+              realmName: 'ec1'
+            }
+          },
+          url: 'https://peer-ec1.decentraland.org'
+        }
+      ])
+    }
+
+    const mainRealmProvider = {
+      getStatus: jest.fn().mockResolvedValue({
+        healthy: true,
+        userCount: 100,
+        adapter: 'adapter',
+        realmName: 'main'
+      })
+    }
+
+    const { body } = await executeHandler(catalysts, mainRealmProvider, 'https://peer-ec1.decentraland.org')
+
+    expect(body.configurations.realmName).toEqual('main')
   })
 })
