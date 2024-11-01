@@ -83,7 +83,7 @@ export async function createCatalystsProvider({
           console.log(`Fetching /about from ${catalyst}`)
           const response = await opts.fetch(`${catalyst}/about`, { timeout: 1000 })
           if (!response.ok) {
-            console.warn(`Failed to fetch /about from ${catalyst}: ${response.statusText}`)
+            logger.warn(`Failed to fetch /about from ${catalyst}: ${response.statusText}`)
             return null
           }
           const info = await response.json()
