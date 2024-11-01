@@ -80,7 +80,7 @@ export async function createCatalystsProvider({
     const catalystsInfo = await Promise.all(
       catalysts.map(async (catalyst) => {
         try {
-          console.log(`Fetching /about from ${catalyst}`)
+          logger.info(`Fetching /about from ${catalyst}`)
           const response = await opts.fetch(`${catalyst}/about`, { timeout: 1000 })
           if (!response.ok) {
             logger.warn(`Failed to fetch /about from ${catalyst}: ${response.statusText}`)
