@@ -70,36 +70,37 @@ export async function createCatalystsProvider({
     }
   })
 
-  const aboutCache = new LRUCache<string, RealmInfo>({
-    max: 20,
-    ttl: 1000 * 60 * 60 * 2, // 2 minutes
-    fetchMethod: async function (catalyst: string) {
-      try {
-        const response = await fetch.fetch(`${catalyst}/about`, { timeout: 1000 })
-        const about = await response.json()
-        return { about, url: catalyst }
-      } catch (err: any) {
-        logger.error(err)
-        // If it fails to fetch the about, we assume it's not healthy
-        return undefined
-      }
-    }
-  })
-
   async function getHealhtyCatalysts(): Promise<RealmInfo[]> {
     const catalysts = await daoCache.fetch(1)
-    if (!catalysts) {
+    if (!catalysts || catalysts.length === 0) {
+      console.warn('No catalysts found in daoCache.')
       return []
     }
 
-    const catalystsInfo = await Promise.all(catalysts.map((catalyst) => aboutCache.fetch(catalyst)))
-    const result: RealmInfo[] = []
-    for (const info of catalystsInfo) {
-      if (info && info.about && info.about.healthy && info.about.acceptingUsers) {
-        result.push(info)
-      }
-    }
-    return result
+    const catalystsInfo = await Promise.all(
+      catalysts.map(async (catalyst) => {
+        try {
+          logger.info(`Fetching /about from ${catalyst}`)
+          const response = await opts.fetch(`${catalyst}/about`, { timeout: 1000 })
+          if (!response.ok) {
+            logger.warn(`Failed to fetch /about from ${catalyst}: ${response.statusText}`)
+            return null
+          }
+          const info = await response.json()
+          if (info.healthy && info.acceptingUsers) {
+            return { about: info, url: catalyst }
+          } else {
+            logger.info(`Catalyst ${catalyst} is not healthy or not accepting users`)
+            return null
+          }
+        } catch (error) {
+          logger.error(`Error fetching /about from ${catalyst}: ${error}`)
+          return null
+        }
+      })
+    )
+    // Filter out any null values (unhealthy or failed fetches) and return
+    return catalystsInfo.filter(Boolean) as RealmInfo[]
   }
 
   return {
