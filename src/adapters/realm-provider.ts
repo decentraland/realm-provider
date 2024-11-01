@@ -94,7 +94,7 @@ export async function createCatalystsProvider({
             return null
           }
         } catch (error) {
-          console.error(`Error fetching /about from ${catalyst}: ${error}`)
+          logger.error(`Error fetching /about from ${catalyst}: ${error}`)
           return null
         }
       })
