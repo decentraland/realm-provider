@@ -90,7 +90,7 @@ export async function createCatalystsProvider({
           if (info.healthy && info.acceptingUsers) {
             return { about: info, url: catalyst }
           } else {
-            console.log(`Catalyst ${catalyst} is not healthy or not accepting users`)
+            logger.info(`Catalyst ${catalyst} is not healthy or not accepting users`)
             return null
           }
         } catch (error) {
