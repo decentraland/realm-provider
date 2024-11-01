@@ -70,26 +70,10 @@ export async function createCatalystsProvider({
     }
   })
 
-  const aboutCache = new LRUCache<string, RealmInfo>({
-    max: 20,
-    ttl: 1000 * 60 * 2, // 2 minutes
-    fetchMethod: async function (catalyst: string) {
-      try {
-        const response = await fetch.fetch(`${catalyst}/about`, { timeout: 1000 })
-        const about = await response.json()
-        return { about, url: catalyst }
-      } catch (err: any) {
-        logger.error(err)
-        // If it fails to fetch the about, we assume it's not healthy
-        return undefined
-      }
-    }
-  })
-
   async function getHealhtyCatalysts(): Promise<RealmInfo[]> {
     const catalysts = await daoCache.fetch(1)
     if (!catalysts || catalysts.length === 0) {
-      console.warn("No catalysts found in daoCache.")
+      console.warn('No catalysts found in daoCache.')
       return []
     }
 
