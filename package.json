@@ -33,7 +33,6 @@
     "@well-known-components/metrics": "^2.0.2-20240314122215.commit-df469cb",
     "dcl-catalyst-client": "^21.7.0",
     "eth-connect": "^6.2.4",
-    "lru-cache": "^10.0.1",
-    "package.json": "^2.0.1"
+    "lru-cache": "^10.0.1"
   }
 }
