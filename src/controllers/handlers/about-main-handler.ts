@@ -4,44 +4,43 @@ import { randomInt } from 'crypto'
 import { filterCatalystsByVersion } from '../../logic/catalyst-filter'
 
 export async function aboutMainHandler(
-  context: HandlerContextWithPath<'catalystsProvider' | 'mainRealmProvider' | 'config', '/main/about'>
+  context: HandlerContextWithPath<'catalystsProvider' | 'mainRealmProvider' | 'config' | 'logs', '/main/about'>
 ): Promise<{ status: 200; body: About }> {
   const {
-    components: { catalystsProvider, mainRealmProvider, config }
+    components: { catalystsProvider, mainRealmProvider, config, logs }
   } = context
-
+  const logger = logs.getLogger('main-about-handler')
   const blacklistedCatalyst = ((await config.getString('BLACKLISTED_CATALYST')) || '').split(';').filter(Boolean)
   const catalysts = await catalystsProvider.getHealhtyCatalysts()
 
-  // Debug headers - try different ways to access them
-  console.log('=== HEADERS DEBUG ===')
-  console.log('context keys:', Object.keys(context))
-  console.log('context.request:', context.request)
-  console.log('context.request type:', typeof context.request)
-
+    // Debug headers - try different ways to access them
+  logger.info('=== HEADERS DEBUG ===')
+  logger.info(`context keys: ${Object.keys(context).join(', ')}`)
+  logger.info(`context.request: ${context.request ? 'exists' : 'null'}`)
+  logger.info(`context.request type: ${typeof context.request}`)
+  
   if (context.request) {
-    console.log('context.request.headers:', context.request.headers)
-    console.log('context.request.headers type:', typeof context.request.headers)
-    console.log(
-      'context.request.headers keys:',
-      context.request.headers ? Object.keys(context.request.headers) : 'null'
+    logger.info(`context.request.headers: ${context.request.headers ? 'exists' : 'null'}`)
+    logger.info(`context.request.headers type: ${typeof context.request.headers}`)
+    logger.info(
+      `context.request.headers keys: ${context.request.headers ? Object.keys(context.request.headers).join(', ') : 'null'}`
     )
-
+    
     // Try to access headers as an object
     if (context.request.headers && typeof context.request.headers === 'object') {
-      console.log('Headers as object:', JSON.stringify(context.request.headers, null, 2))
+      logger.info(`Headers as object: ${JSON.stringify(context.request.headers, null, 2)}`)
     }
-
+    
     // Try to access headers as Headers object
     if (context.request.headers && typeof context.request.headers.get === 'function') {
-      console.log('CF-IPCountry header:', context.request.headers.get('CF-IPCountry'))
-      console.log('User-Agent header:', context.request.headers.get('User-Agent'))
-      console.log('Accept header:', context.request.headers.get('Accept'))
+      logger.info(`CF-IPCountry header: ${context.request.headers.get('CF-IPCountry') || 'not present'}`)
+      logger.info(`User-Agent header: ${context.request.headers.get('User-Agent') || 'not present'}`)
+      logger.info(`Accept header: ${context.request.headers.get('Accept') || 'not present'}`)
     }
   } else {
-    console.log('No request object found in context')
+    logger.info('No request object found in context')
   }
-  console.log('=== END HEADERS DEBUG ===')
+  logger.info('=== END HEADERS DEBUG ===')
 
   if (catalysts.length === 0) {
     throw new ServiceUnavailableError('No content catalysts available')
