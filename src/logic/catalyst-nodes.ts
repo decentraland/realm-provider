@@ -54,5 +54,21 @@ export const CATALYST_NODES: CatalystNode[] = [
     url: 'peer.dclnodes.io',
     country: 'FR',
     location: 'France'
+  },
+  // ---- DEV NODES ----
+  {
+    url: 'peer-ap1.decentraland.zone',
+    country: 'SG',
+    location: 'Singapore'
+  },
+  {
+    url: 'peer.decentraland.zone',
+    country: 'US',
+    location: 'US'
+  },
+  {
+    url: 'peer-ue-2.decentraland.zone',
+    country: 'IE',
+    location: 'Ireland'
   }
 ]
