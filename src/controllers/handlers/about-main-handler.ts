@@ -9,7 +9,7 @@ export async function aboutMainHandler(
   const {
     components: { catalystsProvider, mainRealmProvider, config }
   } = context
-  
+
   const blacklistedCatalyst = ((await config.getString('BLACKLISTED_CATALYST')) || '').split(';').filter(Boolean)
   const catalysts = await catalystsProvider.getHealhtyCatalysts()
 
@@ -18,17 +18,20 @@ export async function aboutMainHandler(
   console.log('context keys:', Object.keys(context))
   console.log('context.request:', context.request)
   console.log('context.request type:', typeof context.request)
-  
+
   if (context.request) {
     console.log('context.request.headers:', context.request.headers)
     console.log('context.request.headers type:', typeof context.request.headers)
-    console.log('context.request.headers keys:', context.request.headers ? Object.keys(context.request.headers) : 'null')
-    
+    console.log(
+      'context.request.headers keys:',
+      context.request.headers ? Object.keys(context.request.headers) : 'null'
+    )
+
     // Try to access headers as an object
     if (context.request.headers && typeof context.request.headers === 'object') {
       console.log('Headers as object:', JSON.stringify(context.request.headers, null, 2))
     }
-    
+
     // Try to access headers as Headers object
     if (context.request.headers && typeof context.request.headers.get === 'function') {
       console.log('CF-IPCountry header:', context.request.headers.get('CF-IPCountry'))
@@ -53,7 +56,7 @@ export async function aboutMainHandler(
 
   // Filter catalysts by version
   const { updatedCatalysts, outdatedCatalysts } = filterCatalystsByVersion(filteredCatalysts)
-  
+
   // Use updated catalysts for selection, fallback to outdated if no updated ones available
   const catalystsToUse = updatedCatalysts.length > 0 ? updatedCatalysts : outdatedCatalysts
 

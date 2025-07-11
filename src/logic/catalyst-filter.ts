@@ -2,7 +2,7 @@
 export function compareVersions(version1: string, version2: string): number {
   const v1Parts = version1.split('.').map(Number)
   const v2Parts = version2.split('.').map(Number)
-  
+
   for (let i = 0; i < Math.max(v1Parts.length, v2Parts.length); i++) {
     const v1Part = v1Parts[i] || 0
     const v2Part = v2Parts[i] || 0
@@ -13,7 +13,7 @@ export function compareVersions(version1: string, version2: string): number {
 }
 
 // Function to filter catalysts by version
-export function filterCatalystsByVersion(catalysts: any[]): { updatedCatalysts: any[], outdatedCatalysts: any[] } {
+export function filterCatalystsByVersion(catalysts: any[]): { updatedCatalysts: any[]; outdatedCatalysts: any[] } {
   if (catalysts.length === 0) {
     return { updatedCatalysts: [], outdatedCatalysts: [] }
   }
@@ -22,7 +22,7 @@ export function filterCatalystsByVersion(catalysts: any[]): { updatedCatalysts: 
   let maxContentVersion = '0.0.0'
   let maxLambdasVersion = '0.0.0'
 
-  catalysts.forEach(catalyst => {
+  catalysts.forEach((catalyst) => {
     const contentVersion = catalyst.about?.content?.version || '0.0.0'
     const lambdasVersion = catalyst.about?.lambdas?.version || '0.0.0'
 
@@ -38,7 +38,7 @@ export function filterCatalystsByVersion(catalysts: any[]): { updatedCatalysts: 
   const updatedCatalysts: any[] = []
   const outdatedCatalysts: any[] = []
 
-  catalysts.forEach(catalyst => {
+  catalysts.forEach((catalyst) => {
     const contentVersion = catalyst.about?.content?.version || '0.0.0'
     const lambdasVersion = catalyst.about?.lambdas?.version || '0.0.0'
 
@@ -58,4 +58,4 @@ export function filterCatalystsByVersion(catalysts: any[]): { updatedCatalysts: 
   }
 
   return { updatedCatalysts, outdatedCatalysts }
-} 
+}

@@ -47,14 +47,36 @@ describe('about main handler unit test', () => {
     const { body } = await executeHandler(catalysts, mainRealmProvider)
 
     expect(body).toEqual({
-      configurations: { realmName: 'main' },
+      configurations: { 
+        realmName: 'main',
+        map: {
+          minimapEnabled: true,
+          sizes: [
+            { left: -150, top: 150, right: 150, bottom: -150 },
+            { left: 62, top: 158, right: 162, bottom: 151 },
+            { left: 151, top: 150, right: 163, bottom: 59 }
+          ],
+          satelliteView: {
+            version: 'v1',
+            baseUrl: 'https://genesis.city/map/latest',
+            suffixUrl: '.jpg',
+            topLeftOffset: { x: -2, y: -6 }
+          },
+          parcelView: {
+            version: 'v1',
+            imageUrl: 'https://api.decentraland.org/v1/minimap.png'
+          }
+        }
+      },
       healthy: true,
       acceptingUsers: true,
       comms: {
         healthy: true,
         protocol: 'v3',
         usersCount: 100,
-        adapter: 'adapter'
+        adapter: 'adapter',
+        version: undefined,
+        commitHash: undefined
       }
     })
   })
@@ -105,14 +127,36 @@ describe('about main handler unit test', () => {
     const { body } = await executeHandler(catalysts, mainRealmProvider, 'https://peer-ec1.decentraland.org')
 
     expect(body).toEqual({
-      configurations: { realmName: 'main' },
+      configurations: { 
+        realmName: 'main',
+        map: {
+          minimapEnabled: true,
+          sizes: [
+            { left: -150, top: 150, right: 150, bottom: -150 },
+            { left: 62, top: 158, right: 162, bottom: 151 },
+            { left: 151, top: 150, right: 163, bottom: 59 }
+          ],
+          satelliteView: {
+            version: 'v1',
+            baseUrl: 'https://genesis.city/map/latest',
+            suffixUrl: '.jpg',
+            topLeftOffset: { x: -2, y: -6 }
+          },
+          parcelView: {
+            version: 'v1',
+            imageUrl: 'https://api.decentraland.org/v1/minimap.png'
+          }
+        }
+      },
       healthy: true,
       acceptingUsers: true,
       comms: {
         healthy: true,
         protocol: 'v3',
         usersCount: 100,
-        adapter: 'adapter'
+        adapter: 'adapter',
+        version: undefined,
+        commitHash: undefined
       },
       content: {
         healthy: true,
