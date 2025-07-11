@@ -26,19 +26,29 @@ export function haversineDistance(lat1: number, lon1: number, lat2: number, lon2
 }
 
 /**
- * Given a request country code and a list of nodes (each with a country code),
+ * Find the country code for a catalyst URL by matching against known nodes.
+ */
+export function getCountryForCatalystUrl(url: string): string | undefined {
+  const normalizedUrl = url.replace(/^https?:\/\//, '').replace(/\/$/, '')
+  const node = CATALYST_NODES.find((n) => n.url === normalizedUrl)
+  return node?.country
+}
+
+/**
+ * Given a request country code and a list of catalyst objects (each with a url),
  * return the index of the closest node.
  * If there are multiple nodes at the same minimum distance, pick one at random.
- * Each node should have a property 'country' (ISO-3166-1 alpha-2 code).
  */
-export function findClosestNode(requestCountry: string, nodes: { country: string }[]): number {
+export function findClosestNode(requestCountry: string, catalysts: { url: string }[]): number {
   const reqCentroid = getCountryCentroid(requestCountry)
   if (!reqCentroid) return 0 // fallback: first node
 
   let minDist = Infinity
   let minIndices: number[] = []
-  nodes.forEach((node, idx) => {
-    const nodeCentroid = getCountryCentroid(node.country)
+  catalysts.forEach((catalyst, idx) => {
+    const country = getCountryForCatalystUrl(catalyst.url)
+    if (!country) return // skip if country not found
+    const nodeCentroid = getCountryCentroid(country)
     if (!nodeCentroid) return
     const dist = haversineDistance(reqCentroid[0], reqCentroid[1], nodeCentroid[0], nodeCentroid[1])
     if (dist < minDist) {
