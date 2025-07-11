@@ -1,5 +1,5 @@
 import { COUNTRY_CENTROIDS } from './country-centroids'
-import { CATALYST_NODES, CatalystNode } from './catalyst-nodes'
+import { CATALYST_NODES } from './catalyst-nodes-regions'
 import { randomInt } from 'crypto'
 
 /**
@@ -75,42 +75,4 @@ export function findClosestNode(requestCountry: string, catalysts: { url: string
   if (minIndices.length === 1) return minIndices[0]
   // Randomly select among ties using crypto.randomInt
   return minIndices[randomInt(minIndices.length)]
-}
-
-/**
- * Find the closest catalyst node based on request country code.
- * Returns the URL of the closest node, or undefined if no nodes are available.
- */
-export function findClosestCatalystNode(requestCountry: string): string | undefined {
-  if (CATALYST_NODES.length === 0) return undefined
-
-  const reqCentroid = getCountryCentroid(requestCountry)
-  if (!reqCentroid) {
-    // Fallback: return first node if request country not found
-    return CATALYST_NODES[0]?.url
-  }
-
-  let minDist = Infinity
-  let closestNode: CatalystNode | undefined
-
-  CATALYST_NODES.forEach((node) => {
-    const nodeCentroid = getCountryCentroid(node.country)
-    if (!nodeCentroid) return
-
-    const dist = haversineDistance(reqCentroid[0], reqCentroid[1], nodeCentroid[0], nodeCentroid[1])
-
-    if (dist < minDist) {
-      minDist = dist
-      closestNode = node
-    }
-  })
-
-  return closestNode?.url
-}
-
-/**
- * Get all available catalyst node URLs.
- */
-export function getCatalystNodeUrls(): string[] {
-  return CATALYST_NODES.map((node) => node.url)
 }
