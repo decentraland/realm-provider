@@ -86,13 +86,6 @@ export async function createCatalystsProvider({
             logger.warn(`Failed to fetch /about from ${catalyst}: ${response.statusText}`)
             return null
           }
-
-          // Log all headers from the response
-          const headers: Record<string, string> = {}
-          response.headers.forEach((value, key) => {
-            headers[key] = value
-          })
-
           const info = await response.json()
           if (info.healthy && info.acceptingUsers) {
             return { about: info, url: catalyst }

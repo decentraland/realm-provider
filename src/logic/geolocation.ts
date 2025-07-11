@@ -11,17 +11,16 @@ export function getCountryCentroid(countryCode: string): [number, number] | unde
 /**
  * Calculate the Haversine distance (in km) between two lat/lon points.
  */
-export function haversineDistance(
-  lat1: number, lon1: number, lat2: number, lon2: number
-): number {
-  const toRad = (deg: number) => (deg * Math.PI) / 180
+export function haversineDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  function toRad(deg: number): number {
+    return (deg * Math.PI) / 180
+  }
   const R = 6371 // Earth radius in km
   const dLat = toRad(lat2 - lat1)
   const dLon = toRad(lon2 - lon1)
   const a =
     Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
-    Math.sin(dLon / 2) * Math.sin(dLon / 2)
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2)
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
   return R * c
 }
@@ -32,10 +31,7 @@ export function haversineDistance(
  * If there are multiple nodes at the same minimum distance, pick one at random.
  * Each node should have a property 'country' (ISO-3166-1 alpha-2 code).
  */
-export function findClosestNode(
-  requestCountry: string,
-  nodes: { country: string }[]
-): number {
+export function findClosestNode(requestCountry: string, nodes: { country: string }[]): number {
   const reqCentroid = getCountryCentroid(requestCountry)
   if (!reqCentroid) return 0 // fallback: first node
 
@@ -63,7 +59,7 @@ export function findClosestNode(
  */
 export function findClosestCatalystNode(requestCountry: string): string | undefined {
   if (CATALYST_NODES.length === 0) return undefined
-  
+
   const reqCentroid = getCountryCentroid(requestCountry)
   if (!reqCentroid) {
     // Fallback: return first node if request country not found
@@ -76,14 +72,9 @@ export function findClosestCatalystNode(requestCountry: string): string | undefi
   CATALYST_NODES.forEach((node) => {
     const nodeCentroid = getCountryCentroid(node.country)
     if (!nodeCentroid) return
-    
-    const dist = haversineDistance(
-      reqCentroid[0], 
-      reqCentroid[1], 
-      nodeCentroid[0], 
-      nodeCentroid[1]
-    )
-    
+
+    const dist = haversineDistance(reqCentroid[0], reqCentroid[1], nodeCentroid[0], nodeCentroid[1])
+
     if (dist < minDist) {
       minDist = dist
       closestNode = node
@@ -97,5 +88,5 @@ export function findClosestCatalystNode(requestCountry: string): string | undefi
  * Get all available catalyst node URLs.
  */
 export function getCatalystNodeUrls(): string[] {
-  return CATALYST_NODES.map(node => node.url)
+  return CATALYST_NODES.map((node) => node.url)
 }

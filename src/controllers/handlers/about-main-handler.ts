@@ -12,9 +12,9 @@ export async function aboutMainHandler(
   const logger = logs.getLogger('main-about-handler')
   const blacklistedCatalyst = ((await config.getString('BLACKLISTED_CATALYST')) || '').split(';').filter(Boolean)
   const catalysts = await catalystsProvider.getHealhtyCatalysts()
-  
+
   logger.info(`CF-IPCountry header: ${context.request.headers.get('CF-IPCountry') || 'not present'}`)
-  
+
   if (catalysts.length === 0) {
     throw new ServiceUnavailableError('No content catalysts available')
   }

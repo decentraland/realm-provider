@@ -55,4 +55,4 @@ export const CATALYST_NODES: CatalystNode[] = [
     country: 'FR',
     location: 'France'
   }
-] 
+]
