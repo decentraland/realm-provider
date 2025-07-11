@@ -13,24 +13,24 @@ export async function aboutMainHandler(
   const blacklistedCatalyst = ((await config.getString('BLACKLISTED_CATALYST')) || '').split(';').filter(Boolean)
   const catalysts = await catalystsProvider.getHealhtyCatalysts()
 
-    // Debug headers - try different ways to access them
+  // Debug headers - try different ways to access them
   logger.info('=== HEADERS DEBUG ===')
   logger.info(`context keys: ${Object.keys(context).join(', ')}`)
   logger.info(`context.request: ${context.request ? 'exists' : 'null'}`)
   logger.info(`context.request type: ${typeof context.request}`)
-  
+
   if (context.request) {
     logger.info(`context.request.headers: ${context.request.headers ? 'exists' : 'null'}`)
     logger.info(`context.request.headers type: ${typeof context.request.headers}`)
     logger.info(
       `context.request.headers keys: ${context.request.headers ? Object.keys(context.request.headers).join(', ') : 'null'}`
     )
-    
+
     // Try to access headers as an object
     if (context.request.headers && typeof context.request.headers === 'object') {
       logger.info(`Headers as object: ${JSON.stringify(context.request.headers, null, 2)}`)
     }
-    
+
     // Try to access headers as Headers object
     if (context.request.headers && typeof context.request.headers.get === 'function') {
       logger.info(`CF-IPCountry header: ${context.request.headers.get('CF-IPCountry') || 'not present'}`)
