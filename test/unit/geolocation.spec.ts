@@ -95,6 +95,28 @@ describe('geolocation', () => {
       expect(index).toBe(3) // Singapore node
     })
 
+    it('should select France node for Belgium client', () => {
+      // France node is at index 5 in mockCatalysts
+      mockCatalysts.push({ url: 'peer.kyllian.me' }) // France
+      const index = findClosestNode('BE', mockCatalysts)
+      expect(index).toBe(5)
+    })
+
+    it('should select Singapore node for Japan client', () => {
+      const index = findClosestNode('JP', mockCatalysts)
+      expect(index).toBe(3) // Singapore node
+    })
+
+    it('should select US node for Bahamas client', () => {
+      const index = findClosestNode('BS', mockCatalysts)
+      expect(index).toBe(0) // US node
+    })
+
+    it('should select Brazil node for Argentina client', () => {
+      const index = findClosestNode('AR', mockCatalysts)
+      expect(index).toBe(1) // Brazil node
+    })
+
     it('should return random node for unknown country', () => {
       const index = findClosestNode('XX', mockCatalysts)
       expect(index).toBeGreaterThanOrEqual(0)
