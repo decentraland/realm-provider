@@ -27,9 +27,11 @@ export async function aboutMainHandler(
   const { updatedCatalysts, outdatedCatalysts } = filterCatalystsByVersion(filteredCatalysts)
 
   // Use updated catalysts for selection, fallback to outdated if no updated ones available
+  // This should never happen, but it is safty fallback just in case
   const catalystsToUse = updatedCatalysts.length > 0 ? updatedCatalysts : outdatedCatalysts
 
   // Geolocation-based selection
+  // Country code is set by Cloudflare https://developers.cloudflare.com/fundamentals/reference/http-headers/#cf-ipcountry
   const countryCode = context.request.headers.get('CF-IPCountry') || ''
   let index = 0
   if (countryCode) {
@@ -48,32 +50,11 @@ export async function aboutMainHandler(
 
   const mainRealmStatus = await mainRealmProvider.getStatus()
 
-  // https://adr.decentraland.org/adr/ADR-250
-  const mapConfigurations: AboutConfigurationsMap = {
-    minimapEnabled: true,
-    sizes: [
-      { left: -150, top: 150, right: 150, bottom: -150 },
-      { left: 62, top: 158, right: 162, bottom: 151 },
-      { left: 151, top: 150, right: 163, bottom: 59 }
-    ],
-    satelliteView: {
-      version: 'v1',
-      baseUrl: 'https://genesis.city/map/latest',
-      suffixUrl: '.jpg',
-      topLeftOffset: { x: -2, y: -6 }
-    },
-    parcelView: {
-      version: 'v1',
-      imageUrl: 'https://api.decentraland.org/v1/minimap.png'
-    }
-  }
-
   const about: About = {
     ...catalystAbout,
     configurations: {
       ...catalystAbout.configurations,
-      realmName: mainRealmStatus.realmName,
-      map: mapConfigurations
+      realmName: mainRealmStatus.realmName      
     },
     healthy: mainRealmStatus.healthy,
     acceptingUsers: mainRealmStatus.healthy,
