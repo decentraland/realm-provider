@@ -39,13 +39,13 @@ export function getCountryForCatalystUrl(url: string): string | undefined {
  * Given a request country code and a list of catalyst objects (each with a url),
  * return the index of the closest node.
  * If there are multiple nodes at the same minimum distance, pick one at random.
- * If no nodes have known countries, return the first node as fallback.
+ * If no nodes have known countries, return the a random node as fallback.
  */
 export function findClosestNode(requestCountry: string, catalysts: { url: string }[]): number {
   if (catalysts.length === 0) return 0 // fallback: first node (though array is empty)
 
   const reqCentroid = getCountryCentroid(requestCountry)
-  if (!reqCentroid) return 0 // fallback: first node
+  if (!reqCentroid) return randomInt(catalysts.length) // fallback: random node
 
   let minDist = Infinity
   let minIndices: number[] = []
@@ -67,9 +67,9 @@ export function findClosestNode(requestCountry: string, catalysts: { url: string
     }
   })
 
-  // If no catalysts have known countries, return first node
+  // If no catalysts have known countries, return random node
   if (!hasKnownCountries || minIndices.length === 0) {
-    return 0
+    return randomInt(catalysts.length)
   }
 
   if (minIndices.length === 1) return minIndices[0]

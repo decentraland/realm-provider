@@ -95,9 +95,10 @@ describe('geolocation', () => {
       expect(index).toBe(3) // Singapore node
     })
 
-    it('should return first node for unknown country', () => {
+    it('should return random node for unknown country', () => {
       const index = findClosestNode('XX', mockCatalysts)
-      expect(index).toBe(0) // Should return first node as fallback
+      expect(index).toBeGreaterThanOrEqual(0)
+      expect(index).toBeLessThan(mockCatalysts.length)
     })
 
     it('should handle catalysts with unknown countries', () => {
@@ -112,7 +113,8 @@ describe('geolocation', () => {
 
     it('should handle request with unknown country', () => {
       const index = findClosestNode('XX', mockCatalysts)
-      expect(index).toBe(0) // Should return first node as fallback
+      expect(index).toBeGreaterThanOrEqual(0)
+      expect(index).toBeLessThan(mockCatalysts.length)
     })
 
     it('should handle catalysts with unknown URLs gracefully', () => {
@@ -123,7 +125,8 @@ describe('geolocation', () => {
       ]
       
       const index = findClosestNode('US', catalystsWithUnknownUrls)
-      expect(index).toBe(0) // Should return first node as fallback when no known countries
+      expect(index).toBeGreaterThanOrEqual(0)
+      expect(index).toBeLessThan(catalystsWithUnknownUrls.length)
     })
 
     it('should handle empty catalysts array', () => {
