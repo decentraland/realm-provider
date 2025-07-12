@@ -54,7 +54,7 @@ export async function aboutMainHandler(
     ...catalystAbout,
     configurations: {
       ...catalystAbout.configurations,
-      realmName: mainRealmStatus.realmName      
+      realmName: mainRealmStatus.realmName
     },
     healthy: mainRealmStatus.healthy,
     acceptingUsers: mainRealmStatus.healthy,
