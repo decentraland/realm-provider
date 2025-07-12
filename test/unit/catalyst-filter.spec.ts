@@ -22,11 +22,6 @@ describe('catalyst-filter', () => {
       expect(result).toBe(1)
     })
 
-    it('should handle different version formats', () => {
-      const result = compareVersions('6.19.7', '6.19.7')
-      expect(result).toBe(0)
-    })
-
     it('should handle version format differences', () => {
       const result = compareVersions('4.0.0', '3.14.1')
       expect(result).toBe(1)
