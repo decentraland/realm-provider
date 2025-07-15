@@ -56,11 +56,6 @@ export function filterCatalystsByVersion(catalysts: RealmInfo[]): {
       outdatedCatalysts.push(catalyst)
     }
   })
-
-  // If all catalysts are up to date, return all as updated
-  if (updatedCatalysts.length === catalysts.length) {
-    return { updatedCatalysts: catalysts, outdatedCatalysts: [] }
-  }
-
+  
   return { updatedCatalysts, outdatedCatalysts }
 }
