@@ -1,6 +1,7 @@
 import { COUNTRY_CENTROIDS } from './country-centroids'
 import { CATALYST_NODES } from './catalyst-nodes-regions'
 import { randomInt } from 'crypto'
+import { RealmInfo } from '../types'
 
 /**
  * Get the centroid [lat, lon] for a country code. Returns undefined if not found.
@@ -41,7 +42,7 @@ export function getCountryForCatalystUrl(url: string): string | undefined {
  * If there are multiple nodes at the same minimum distance, pick one at random.
  * If no nodes have known countries, return the a random node as fallback.
  */
-export function findClosestNode(requestCountry: string, catalysts: { url: string }[]): number {
+export function findClosestNode(requestCountry: string, catalysts: RealmInfo[]): number {
   if (catalysts.length === 0) return 0 // fallback: first node (though array is empty)
 
   const reqCentroid = getCountryCentroid(requestCountry)
