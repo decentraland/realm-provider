@@ -13,7 +13,7 @@ export function compareVersions(version1: string, version2: string): number {
 }
 
 // Function to filter catalysts by version
-export function filterCatalystsByVersion(catalysts: any[]): { updatedCatalysts: any[]; outdatedCatalysts: any[] } {
+export function filterCatalystsByVersion(catalysts: RealmInfo[]): { updatedCatalysts: RealmInfo[]; outdatedCatalysts: RealmInfo[] } {
   if (catalysts.length === 0) {
     return { updatedCatalysts: [], outdatedCatalysts: [] }
   }
