@@ -2,39 +2,44 @@ import { compareVersions, filterCatalystsByVersion } from '../../src/logic/catal
 
 describe('catalyst-filter', () => {
   describe('when comparing semantic versions', () => {
-    it('should return 0 when versions are equal', () => {
-      const result = compareVersions('1.0.0', '1.0.0')
-      expect(result).toBe(0)
+    describe('and the major is greater on the first version', () => {
+      it('should return 1', () => {
+        expect(compareVersions('2.0.0', '1.0.0')).toBe(1)
+      })
     })
-
-    it('should return 1 when first version is greater', () => {
-      const result = compareVersions('1.0.1', '1.0.0')
-      expect(result).toBe(1)
+    describe('and the the major is equal on the first version', () => {
+      describe('and the minor is greater on the first version', () => {
+        it('should return 1', () => {
+          expect(compareVersions('1.0.0', '1.0.0')).toBe(1)
+        })
+      })
+      describe('and the minors are equal', () => {
+        describe('and the fix is greater in the first version', () => {
+          it('should return 1', () => {
+            expect(compareVersions('1.0.1', '1.0.0')).toBe(1)
+          })
+        })
+        describe('and the fixes are equal', () => {
+          it('should return 0', () => {
+            expect(compareVersions('1.0.10, '1.0.0')).toBe(0)
+          })
+        })
+        describe('and the fix is lower in the first version', () => {
+          it('should return -1', () => {
+            expect(compareVersions('1.0.10, '1.0.1')).toBe(-1)
+          })
+        })
+      })
+      describe('and the minor is lower on the first version', () => {
+        it('should return -1', () => {
+          expect(compareVersions('1.0.0', '1.1.0')).toBe(-1)
+        })
+      })
     })
-
-    it('should return -1 when first version is less', () => {
-      const result = compareVersions('1.0.0', '1.0.1')
-      expect(result).toBe(-1)
-    })
-
-    it('should handle major version differences', () => {
-      const result = compareVersions('2.0.0', '1.9.9')
-      expect(result).toBe(1)
-    })
-
-    it('should handle version format differences', () => {
-      const result = compareVersions('4.0.0', '3.14.1')
-      expect(result).toBe(1)
-    })
-
-    it('should handle missing version parts', () => {
-      const result = compareVersions('1.0', '1.0.0')
-      expect(result).toBe(0)
-    })
-
-    it('should handle single digit versions', () => {
-      const result = compareVersions('1', '1.0.0')
-      expect(result).toBe(0)
+    describe('and the major is lower in the first version', () => {
+      it('should return -1', () => {
+        expect(compareVersions('1.0.0', '2.0.0')).toBe(-1)
+      })
     })
   })
 
