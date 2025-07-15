@@ -10,7 +10,7 @@ describe('catalyst-filter', () => {
     describe('and the the major is equal on the first version', () => {
       describe('and the minor is greater on the first version', () => {
         it('should return 1', () => {
-          expect(compareVersions('1.0.0', '1.0.0')).toBe(1)
+          expect(compareVersions('1.0.0', '1.0.0')).toBe(0)
         })
       })
       describe('and the minors are equal', () => {
@@ -20,13 +20,13 @@ describe('catalyst-filter', () => {
           })
         })
         describe('and the fixes are equal', () => {
-          it('should return 0', () => {
-            expect(compareVersions('1.0.10, '1.0.0')).toBe(0)
+          it('should return 1', () => {
+            expect(compareVersions('1.0.10', '1.0.0')).toBe(1)
           })
         })
         describe('and the fix is lower in the first version', () => {
-          it('should return -1', () => {
-            expect(compareVersions('1.0.10, '1.0.1')).toBe(-1)
+          it('should return 1', () => {
+            expect(compareVersions('1.0.10', '1.0.1')).toBe(1)
           })
         })
       })

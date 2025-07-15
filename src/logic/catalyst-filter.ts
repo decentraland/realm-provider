@@ -1,3 +1,5 @@
+import { RealmInfo } from '../types'
+
 // Utility function to compare semantic versions
 export function compareVersions(version1: string, version2: string): number {
   const v1Parts = version1.split('.').map(Number)
@@ -13,7 +15,10 @@ export function compareVersions(version1: string, version2: string): number {
 }
 
 // Function to filter catalysts by version
-export function filterCatalystsByVersion(catalysts: RealmInfo[]): { updatedCatalysts: RealmInfo[]; outdatedCatalysts: RealmInfo[] } {
+export function filterCatalystsByVersion(catalysts: RealmInfo[]): {
+  updatedCatalysts: RealmInfo[]
+  outdatedCatalysts: RealmInfo[]
+} {
   if (catalysts.length === 0) {
     return { updatedCatalysts: [], outdatedCatalysts: [] }
   }
@@ -35,8 +40,8 @@ export function filterCatalystsByVersion(catalysts: RealmInfo[]): { updatedCatal
   })
 
   // Separate catalysts into updated and outdated
-  const updatedCatalysts: any[] = []
-  const outdatedCatalysts: any[] = []
+  const updatedCatalysts: RealmInfo[] = []
+  const outdatedCatalysts: RealmInfo[] = []
 
   catalysts.forEach((catalyst) => {
     const contentVersion = catalyst.about?.content?.version || '0.0.0'

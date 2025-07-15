@@ -10,6 +10,7 @@ import { metricDeclarations } from './metrics'
 import { CatalystsProvider } from './adapters/realm-provider'
 import { MainRealmProviderComponent } from './adapters/main-realm-provider'
 import { IContentComponent } from './adapters/content'
+import { About } from '@dcl/catalyst-api-specs/lib/client'
 
 export type GlobalContext = {
   components: BaseComponents
@@ -70,4 +71,9 @@ export class ServiceUnavailableError extends Error {
     super(message)
     Error.captureStackTrace(this, this.constructor)
   }
+}
+
+export type RealmInfo = {
+  about: About
+  url: string
 }
