@@ -23,8 +23,6 @@ export async function aboutMainHandler(
       )
     : catalysts
 
-  console.log('catalysts', catalysts)
-  console.log('filteredCatalysts', filteredCatalysts)
   // Filter catalysts by version
   const { updatedCatalysts, outdatedCatalysts } = filterCatalystsByVersion(filteredCatalysts)
 
