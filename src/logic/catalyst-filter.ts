@@ -56,6 +56,6 @@ export function filterCatalystsByVersion(catalysts: RealmInfo[]): {
       outdatedCatalysts.push(catalyst)
     }
   })
-  
+
   return { updatedCatalysts, outdatedCatalysts }
 }
