@@ -1,4 +1,4 @@
-import { HandlerContextWithPath, ServiceUnavailableError } from '../../types'
+import { HandlerContextWithPath, ServiceUnavailableError, RealmInfo } from '../../types'
 import { About, AboutConfigurationsMap } from '@dcl/catalyst-api-specs/lib/client'
 import { filterCatalystsByVersion } from '../../logic/catalyst-filter'
 import { findClosestNode } from '../../logic/geolocation'
@@ -18,7 +18,7 @@ export async function aboutMainHandler(
 
   const filteredCatalysts = blacklistedCatalyst.length
     ? catalysts.filter(
-        (catalyst: any) =>
+        (catalyst: RealmInfo) =>
           !blacklistedCatalyst.some((blackListedCatalyst) => catalyst.url.toLowerCase().includes(blackListedCatalyst))
       )
     : catalysts
@@ -40,7 +40,7 @@ export async function aboutMainHandler(
 
   const preferredCatalyst = context.url.searchParams.get('catalyst')
   if (preferredCatalyst) {
-    const preferredCatalystIndex = catalystsToUse.findIndex((catalyst: any) => catalyst.url === preferredCatalyst)
+    const preferredCatalystIndex = catalystsToUse.findIndex((catalyst: RealmInfo) => catalyst.url === preferredCatalyst)
     if (preferredCatalystIndex >= 0) {
       index = preferredCatalystIndex
     }
