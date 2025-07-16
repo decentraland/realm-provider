@@ -1,12 +1,10 @@
-import { HandlerContextWithPath, ServiceUnavailableError } from '../../types'
-import { About } from '@dcl/catalyst-api-specs/lib/client'
-import { randomInt } from 'crypto'
+import { HandlerContextWithPath, ServiceUnavailableError, RealmInfo } from '../../types'
+import { About, AboutConfigurationsMap } from '@dcl/catalyst-api-specs/lib/client'
+import { filterCatalystsByVersion } from '../../logic/catalyst-filter'
+import { findClosestNode } from '../../logic/geolocation'
 
 export async function aboutMainHandler(
-  context: Pick<
-    HandlerContextWithPath<'catalystsProvider' | 'mainRealmProvider' | 'config', '/main/about'>,
-    'components' | 'url'
-  >
+  context: HandlerContextWithPath<'catalystsProvider' | 'mainRealmProvider' | 'config', '/main/about'>
 ): Promise<{ status: 200; body: About }> {
   const {
     components: { catalystsProvider, mainRealmProvider, config }
@@ -20,22 +18,35 @@ export async function aboutMainHandler(
 
   const filteredCatalysts = blacklistedCatalyst.length
     ? catalysts.filter(
-        (catalyst: any) =>
+        (catalyst: RealmInfo) =>
           !blacklistedCatalyst.some((blackListedCatalyst) => catalyst.url.toLowerCase().includes(blackListedCatalyst))
       )
     : catalysts
 
-  let index = randomInt(filteredCatalysts.length)
+  // Filter catalysts by version
+  const { updatedCatalysts, outdatedCatalysts } = filterCatalystsByVersion(filteredCatalysts)
+
+  // Use updated catalysts for selection, fallback to outdated if no updated ones available
+  // This should never happen, but it is safty fallback just in case
+  const catalystsToUse = updatedCatalysts.length > 0 ? updatedCatalysts : outdatedCatalysts
+
+  // Geolocation-based selection
+  // Country code is set by Cloudflare https://developers.cloudflare.com/fundamentals/reference/http-headers/#cf-ipcountry
+  const countryCode = context.request.headers.get('CF-IPCountry') || ''
+  let index = 0
+  if (countryCode) {
+    index = findClosestNode(countryCode, catalystsToUse)
+  }
 
   const preferredCatalyst = context.url.searchParams.get('catalyst')
   if (preferredCatalyst) {
-    const preferredCatalystIndex = filteredCatalysts.findIndex((catalyst: any) => catalyst.url === preferredCatalyst)
+    const preferredCatalystIndex = catalystsToUse.findIndex((catalyst: RealmInfo) => catalyst.url === preferredCatalyst)
     if (preferredCatalystIndex >= 0) {
       index = preferredCatalystIndex
     }
   }
 
-  const catalystAbout = filteredCatalysts[index].about
+  const catalystAbout = catalystsToUse[index].about
 
   const mainRealmStatus = await mainRealmProvider.getStatus()
 

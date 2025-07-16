@@ -1,5 +1,4 @@
-import { AppComponents } from '../types'
-import { About } from '@dcl/catalyst-api-specs/lib/client'
+import { AppComponents, RealmInfo } from '../types'
 import RequestManager, { bytesToHex, ContractFactory, HTTPProvider } from 'eth-connect'
 import {
   catalystAbi,
@@ -10,11 +9,6 @@ import {
   L1Network
 } from '@dcl/catalyst-contracts'
 import { LRUCache } from 'lru-cache'
-
-export type RealmInfo = {
-  about: About
-  url: string
-}
 
 export type CatalystsProvider = {
   getHealhtyCatalysts(): Promise<RealmInfo[]>
