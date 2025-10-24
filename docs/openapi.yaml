@@ -1,0 +1,350 @@
+openapi: 3.1.0
+info:
+  title: Realm Provider API
+  description: |
+    The Realm Provider API provides realm discovery, hot scenes tracking, and main realm information for Decentraland.
+
+    This service enables clients to:
+    - Discover available catalyst realms with current user counts
+    - Find the most popular scenes across all realms
+    - Retrieve detailed information about the main realm
+    - Monitor service health and status
+
+    The API aggregates data from multiple catalyst servers to provide a unified view of the Decentraland metaverse infrastructure.
+  version: 1.0.0
+  x-api-id: realm-provider-api
+
+servers:
+  - url: https://realm-provider.decentraland.org
+    description: Production server
+
+tags:
+  - name: Health
+    description: Health check and service status endpoints
+  - name: Realms
+    description: Realm discovery and information endpoints
+  - name: Scenes
+    description: Scene discovery and popularity endpoints
+
+paths:
+  /ping:
+    get:
+      summary: Health check endpoint
+      description: Returns the request pathname to verify the service is responsive
+      operationId: ping
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Successful response with pathname
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: /ping
+
+  /status:
+    get:
+      summary: Service status information
+      description: Returns version, commit hash, and current timestamp for the service
+      operationId: getStatus
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Successful response with service status
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - version
+                  - currentTime
+                  - commitHash
+                properties:
+                  version:
+                    type: string
+                    description: Current service version
+                    example: 1.0.0
+                  currentTime:
+                    type: number
+                    description: Unix timestamp in milliseconds
+                    example: 1729785600000
+                  commitHash:
+                    type: string
+                    description: Git commit hash of the deployed version
+                    example: b635386a8c9d1e2f3b4c5d6e7f8g9h0i1j2k3l4m
+
+  /realms:
+    get:
+      summary: List available realms
+      description: |
+        Returns all healthy catalyst realms plus the main realm if available.
+        Each realm includes its server name, URL, and current user count.
+      operationId: getRealms
+      tags:
+        - Realms
+      responses:
+        '200':
+          description: Successful response with list of realms
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Realm'
+              example:
+                - serverName: main
+                  url: https://peer.decentraland.org
+                  usersCount: 150
+                - serverName: catalyst-1
+                  url: https://peer-ec1.decentraland.org
+                  usersCount: 75
+                - serverName: catalyst-2
+                  url: https://peer-wc1.decentraland.org
+                  usersCount: 42
+
+  /hot-scenes:
+    get:
+      summary: Get hot scenes across all realms
+      description: |
+        Returns up to 100 scenes sorted by total user count across all realms.
+        Each scene includes its ID, name, coordinates, parcels, user count, and realm distribution.
+      operationId: getHotScenes
+      tags:
+        - Scenes
+      responses:
+        '200':
+          description: Successful response with list of hot scenes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/HotSceneInfo'
+              example:
+                - id: 0xScene1
+                  name: Genesis Plaza
+                  baseCoords: [0, 0]
+                  parcels: [[0, 0], [0, 1], [1, 0], [1, 1]]
+                  usersTotalCount: 87
+                  realms:
+                    - serverName: main
+                      usersCount: 50
+                    - serverName: catalyst-1
+                      usersCount: 37
+                  thumbnail: https://content.decentraland.org/thumbnail.png
+
+  /main/about:
+    get:
+      summary: Get main realm about information
+      description: |
+        Returns detailed About information for the main realm, including catalyst content server details,
+        comms configuration, and other realm-specific metadata.
+
+        The response follows the About type from @dcl/catalyst-api-specs.
+      operationId: getMainAbout
+      tags:
+        - Realms
+      parameters:
+        - name: catalyst
+          in: query
+          description: Preferred catalyst URL to use as the main realm
+          required: false
+          schema:
+            type: string
+            format: uri
+            example: https://peer.decentraland.org
+      responses:
+        '200':
+          description: Successful response with main realm about information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/About'
+        '503':
+          description: Service unavailable when no catalysts are available
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: No catalysts available
+
+components:
+  schemas:
+    Realm:
+      type: object
+      description: Represents a catalyst realm with its connection information
+      required:
+        - serverName
+        - url
+        - usersCount
+      properties:
+        serverName:
+          type: string
+          description: Name of the realm server
+          example: main
+        url:
+          type: string
+          format: uri
+          description: Base URL of the realm
+          example: https://peer.decentraland.org
+        usersCount:
+          type: number
+          description: Current number of users connected to this realm
+          example: 150
+
+    HotSceneInfo:
+      type: object
+      description: Information about a popular scene across all realms
+      required:
+        - id
+        - name
+        - baseCoords
+        - parcels
+        - usersTotalCount
+        - realms
+      properties:
+        id:
+          type: string
+          description: Unique scene identifier
+          example: 0xScene1
+        name:
+          type: string
+          description: Display name of the scene
+          example: Genesis Plaza
+        baseCoords:
+          type: array
+          description: Base coordinates of the scene [x, y]
+          items:
+            type: number
+          minItems: 2
+          maxItems: 2
+          example: [0, 0]
+        parcels:
+          type: array
+          description: Array of parcel coordinates that make up the scene
+          items:
+            type: array
+            items:
+              type: number
+            minItems: 2
+            maxItems: 2
+          example: [[0, 0], [0, 1], [1, 0], [1, 1]]
+        usersTotalCount:
+          type: number
+          description: Total number of users across all realms in this scene
+          example: 87
+        realms:
+          type: array
+          description: Distribution of users across realms for this scene
+          items:
+            $ref: '#/components/schemas/SceneRealmInfo'
+        thumbnail:
+          type: string
+          format: uri
+          description: Optional thumbnail URL for the scene
+          example: https://content.decentraland.org/thumbnail.png
+
+    SceneRealmInfo:
+      type: object
+      description: User count for a scene in a specific realm
+      required:
+        - serverName
+        - usersCount
+      properties:
+        serverName:
+          type: string
+          description: Name of the realm server
+          example: main
+        usersCount:
+          type: number
+          description: Number of users in this scene on this realm
+          example: 50
+
+    About:
+      type: object
+      description: |
+        Detailed information about the main realm, following the About type from @dcl/catalyst-api-specs.
+        Includes catalyst content server details, comms configuration, and realm metadata.
+      required:
+        - healthy
+        - content
+        - configurations
+      properties:
+        healthy:
+          type: boolean
+          description: Whether the realm is healthy and operational
+          example: true
+        content:
+          type: object
+          description: Content server information
+          properties:
+            healthy:
+              type: boolean
+              example: true
+            version:
+              type: string
+              example: 6.0.0
+            commitHash:
+              type: string
+              example: abc123def456
+            publicUrl:
+              type: string
+              format: uri
+              example: https://peer.decentraland.org/content
+        configurations:
+          type: object
+          description: Realm configuration settings
+          properties:
+            networkId:
+              type: number
+              example: 1
+            globalScenesUrn:
+              type: array
+              items:
+                type: string
+            scenesUrn:
+              type: array
+              items:
+                type: string
+        comms:
+          type: object
+          description: Communications server configuration
+          properties:
+            healthy:
+              type: boolean
+              example: true
+            protocol:
+              type: string
+              example: v3
+            fixedAdapter:
+              type: string
+              example: ws-room-service
+        bff:
+          type: object
+          description: Backend-for-frontend service information
+          properties:
+            healthy:
+              type: boolean
+              example: true
+            userCount:
+              type: number
+              example: 150
+        lambdas:
+          type: object
+          description: Lambda functions service information
+          properties:
+            healthy:
+              type: boolean
+              example: true
+            version:
+              type: string
+              example: 5.0.0
+            publicUrl:
+              type: string
+              format: uri
+              example: https://peer.decentraland.org/lambdas
