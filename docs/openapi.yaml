@@ -7,7 +7,7 @@ info:
     This service enables clients to:
     - Discover available catalyst realms with current user counts
     - Find the most popular scenes across all realms
-    - Retrieve detailed information about the main realm
+    - Retrieve services information for the main realm
     - Monitor service health and status
 
     The API aggregates data from multiple catalyst servers to provide a unified view of the Decentraland metaverse infrastructure.
