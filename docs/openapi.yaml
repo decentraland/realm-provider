@@ -2,7 +2,7 @@ openapi: 3.1.0
 info:
   title: Realm Provider API
   description: |
-    The Realm Provider API provides realm discovery, hot scenes tracking, and main realm information for Decentraland.
+    The Realm Provider API provides realm description (see [ADR-110](https://adr.decentraland.org/adr/ADR-110))  and hot scenes tracking for Decentraland. 
 
     This service enables clients to:
     - Discover available catalyst realms with current user counts
