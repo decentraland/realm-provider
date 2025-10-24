@@ -12,6 +12,9 @@ info:
 
     The API aggregates data from multiple catalyst servers to provide a unified view of the Decentraland metaverse infrastructure.
   version: 1.0.0
+  license:
+    name: Apache 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0.html
   x-api-id: realm-provider-api
 
 servers:
@@ -26,12 +29,14 @@ tags:
   - name: Scenes
     description: Scene discovery and popularity endpoints
 
+security: []
 paths:
   /ping:
     get:
       summary: Health check endpoint
       description: Returns the request pathname to verify the service is responsive
       operationId: ping
+      security: []
       tags:
         - Health
       responses:
@@ -42,12 +47,25 @@ paths:
               schema:
                 type: string
                 example: /ping
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /status:
     get:
       summary: Service status information
       description: Returns version, commit hash, and current timestamp for the service
       operationId: getStatus
+      security: []
       tags:
         - Health
       responses:
@@ -74,6 +92,18 @@ paths:
                     type: string
                     description: Git commit hash of the deployed version
                     example: b635386a8c9d1e2f3b4c5d6e7f8g9h0i1j2k3l4m
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /realms:
     get:
@@ -82,6 +112,7 @@ paths:
         Returns all healthy catalyst realms plus the main realm if available.
         Each realm includes its server name, URL, and current user count.
       operationId: getRealms
+      security: []
       tags:
         - Realms
       responses:
@@ -103,6 +134,18 @@ paths:
                 - serverName: catalyst-2
                   url: https://peer-wc1.decentraland.org
                   usersCount: 42
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /hot-scenes:
     get:
@@ -111,6 +154,7 @@ paths:
         Returns up to 100 scenes sorted by total user count across all realms.
         Each scene includes its ID, name, coordinates, parcels, user count, and realm distribution.
       operationId: getHotScenes
+      security: []
       tags:
         - Scenes
       responses:
@@ -134,6 +178,18 @@ paths:
                     - serverName: catalyst-1
                       usersCount: 37
                   thumbnail: https://content.decentraland.org/thumbnail.png
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
 
   /main/about:
     get:
@@ -144,6 +200,7 @@ paths:
 
         The response follows the About type from @dcl/catalyst-api-specs.
       operationId: getMainAbout
+      security: []
       tags:
         - Realms
       parameters:
@@ -162,6 +219,18 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/About'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '503':
           description: Service unavailable when no catalysts are available
           content:
@@ -352,3 +421,14 @@ components:
               type: string
               format: uri
               example: https://peer.decentraland.org/lambdas
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message
+        code:
+          type: integer
+          description: Error code
+      required:
+        - error
