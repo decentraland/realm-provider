@@ -170,7 +170,7 @@ paths:
         Returns detailed About information for the main realm, including catalyst content server details,
         comms configuration, and other realm-specific metadata.
 
-        The response follows the About type from @dcl/catalyst-api-specs.
+        The response follows the About type from @dcl/catalyst-api-specs and the [ADR-110](https://adr.decentraland.org/adr/ADR-110). The content server provided to the user will be one of the closest most updated nodes based on the user location. 
       operationId: getMainAbout
       security: []
       tags:
