@@ -202,7 +202,6 @@ components:
       description: Information about a popular scene across all realms
       required:
         - id
-        - name
         - baseCoords
         - parcels
         - usersTotalCount
@@ -214,7 +213,7 @@ components:
           example: 0xScene1
         name:
           type: string
-          description: Display name of the scene
+          description: Display name of the scene (may be absent when scene metadata lacks a display title)
           example: Genesis Plaza
         baseCoords:
           type: array
@@ -279,6 +278,10 @@ components:
           type: boolean
           description: Whether the realm is healthy and operational
           example: true
+        acceptingUsers:
+          type: boolean
+          description: Whether the realm is currently accepting new users
+          example: true
         content:
           type: object
           description: Content server information
@@ -321,8 +324,9 @@ components:
             protocol:
               type: string
               example: v3
-            fixedAdapter:
+            adapter:
               type: string
+              description: Communications adapter being used
               example: ws-room-service
         bff:
           type: object
