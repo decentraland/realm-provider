@@ -178,7 +178,7 @@ paths:
       parameters:
         - name: catalyst
           in: query
-          description: Preferred catalyst URL to use as the main realm
+          description: Preferred catalyst URL to use as the main realm. When this parameter is used, the prefer catalyst will be returned as the content server.
           required: false
           schema:
             type: string
