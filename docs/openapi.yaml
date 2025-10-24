@@ -31,34 +31,6 @@ tags:
 
 security: []
 paths:
-  /ping:
-    get:
-      summary: Health check endpoint
-      description: Returns the request pathname to verify the service is responsive
-      operationId: ping
-      security: []
-      tags:
-        - Health
-      responses:
-        '200':
-          description: Successful response with pathname
-          content:
-            text/plain:
-              schema:
-                type: string
-                example: /ping
-        '400':
-          description: Bad request
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
-        '500':
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Error'
 
   /status:
     get:
