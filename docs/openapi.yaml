@@ -3,15 +3,39 @@ info:
   title: Realm Provider API
   description: |
     ## Overview
-    The Realm Provider API provides realm description (see [ADR-110](https://adr.decentraland.org/adr/ADR-110))  and hot scenes tracking for Decentraland. 
+    The Realm Provider API is a central service for Decentraland that provides intelligent realm discovery, real-time scene popularity tracking, and geo-optimized content delivery. 
+    
+    This API implements the realm selection and discovery mechanisms defined in [ADR-110](https://adr.decentraland.org/adr/ADR-110), serving as the primary gateway for Decentraland clients to connect to the optimal catalyst nodes based on user location, node health, and current capacity.
 
-    This service enables clients to:
-    - Discover available catalyst realms with current user counts
-    - Find the most popular scenes across all realms
-    - Retrieve services information for the main realm
-    - Monitor service health and status
+    ### Key Features
+    
+    **Realm Discovery & Selection**
+    - Discover all available catalyst realms with real-time user counts
+    - Automatic health monitoring and filtering of catalyst nodes
+    - Geo-location-based content server selection for optimal performance
+    
+    **Hot Scenes Tracking**
+    - Real-time aggregation of the most popular scenes across all realms
+    - Scene popularity metrics including user distribution per realm
+    - Scene metadata including coordinates, parcels, and thumbnails
+    
+    **Main Realm Services**
+    - Retrieve comprehensive service information for the main realm
+    - Access content server, communications, BFF, and lambdas configurations
+    - Support for preferred catalyst selection via query parameters
+    
+    **Health & Monitoring**
+    - Service status and version information
+    - Health check endpoints for integration monitoring
 
-    The API aggregates data from multiple catalyst servers to provide a unified view of the Decentraland metaverse infrastructure.
+    ### Use Cases
+    
+    This API is designed for:
+    - **Decentraland Clients**: Web and desktop clients that need to connect users to the optimal realm
+    - **Analytics & Monitoring**: Tools that track metaverse activity and infrastructure health
+    - **Third-Party Integrations**: Applications building on top of Decentraland infrastructure
+    
+    The API aggregates data from multiple catalyst servers distributed globally to provide a unified, intelligent view of the Decentraland metaverse infrastructure.
   version: 1.0.0
   license:
     name: Apache 2.0
