@@ -22,3 +22,6 @@ yarn start
 | `/hot-scenes`     | `GET`      | Retrieves information about the most popular scenes currently active. |
 | `/main/about`     | `GET`      | Provides details about the default MAIN realm managed by the Archipelago workers. |
 
+## AI Agent Context
+
+For detailed AI Agent context, see [docs/ai-agent-context.md](docs/ai-agent-context.md).
