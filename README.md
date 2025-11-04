@@ -22,7 +22,7 @@ yarn start
 | `/hot-scenes`     | `GET`      | Retrieves information about the most popular scenes currently active. |
 | `/main/about`     | `GET`      | Provides details about the default MAIN realm managed by the Archipelago workers. |
 
-## 🤖 AI Agent Context
+## AI Agent Context
 
 **Service Purpose:** Provides realm configuration service for Decentraland clients. Implements ADR-110 realm descriptions, enabling clients to discover and connect to available Catalyst nodes, Lambdas services, and communication realms (like the MAIN Archipelago realm).
 
