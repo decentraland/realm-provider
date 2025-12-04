@@ -90,25 +90,54 @@ yarn build
 
 The service uses environment variables for configuration.
 
-Create a `.env` file in the root directory containing the environment variables for the service to run. Key configuration variables include:
+A `.env.default` file is provided in the root directory with default environment variables. To customize the configuration:
 
-- `ARCHIPELAGO_STATS_URL`: URL for the Archipelago stats service (required, e.g., `https://archipelago-stats.decentraland.zone`)
-- `ARCHIPELAGO_WS_CONNECTOR_URL`: URL for the Archipelago WebSocket connector (required, e.g., `https://archipelago-ws-connector.decentraland.zone`)
+1. Copy `.env.default` to `.env`:
+   ```bash
+   cp .env.default .env
+   ```
+
+2. Edit `.env` to change values as needed
+
+Key configuration variables include:
+
+- `ARCHIPELAGO_STATS_URL`: URL for the Archipelago stats service (required)
+- `ARCHIPELAGO_WS_CONNECTOR_URL`: URL for the Archipelago WebSocket connector (required)
 - `ETH_NETWORK`: Ethereum network to use for DAO queries (`mainnet` or `sepolia`, defaults to `mainnet`)
+- `HTTP_SERVER_HOST`: Host for the HTTP server
+- `HTTP_SERVER_PORT`: Port for the HTTP server (defaults to `3000`)
 - `CONTENT_URL`: Default content server URL (optional, defaults to `https://peer.decentraland.org/content/`)
 - `HTTP_BASE_URL`: Base URL for the service (optional, auto-detected from request if not set)
 - `BLACKLISTED_CATALYST`: Semicolon-separated list of catalyst URLs to exclude (optional)
-- `HTTP_SERVER_PORT`: Port for the HTTP server (optional, defaults to `3000`)
 - `COMMIT_HASH`: Git commit hash for status endpoint (optional)
 - `CURRENT_VERSION`: Service version for status endpoint (optional)
 
 Example `.env` file:
 
 ```bash
+# Archipelago configuration
 ARCHIPELAGO_STATS_URL=https://archipelago-stats.decentraland.zone
 ARCHIPELAGO_WS_CONNECTOR_URL=https://archipelago-ws-connector.decentraland.zone
-ETH_NETWORK=mainnet
+
+# Ethereum network configuration
+ETH_NETWORK=sepolia
+
+# HTTP server configuration
+HTTP_SERVER_HOST=0.0.0.0
 HTTP_SERVER_PORT=3000
+
+# Optional: Content server URL (defaults to https://peer.decentraland.org/content/)
+CONTENT_URL=https://peer.decentraland.zone/content/
+
+# Optional: HTTP base URL (auto-detected from request if not set)
+# HTTP_BASE_URL=
+
+# Optional: Blacklist catalysts (semicolon-separated list)
+# BLACKLISTED_CATALYST=
+
+# Optional: Service version information
+# COMMIT_HASH=
+# CURRENT_VERSION=
 ```
 
 ### Running the Service
