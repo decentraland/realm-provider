@@ -41,20 +41,10 @@ External dependencies:
 
 - **Ethereum RPC**: Connects to Ethereum mainnet (or sepolia for testing) via `https://rpc.decentraland.org` to query the Catalyst DAO contract
 - **Cloudflare**: Uses CF-IPCountry header for geo-location based routing
-- **@well-known-components**: Provides core infrastructure components (HTTP server, logger, metrics, config)
 
 ## API Documentation
 
 The API is fully documented using the [OpenAPI standard](https://swagger.io/specification/). Its schema is located at [docs/openapi.yaml](docs/openapi.yaml).
-
-### Key Endpoints
-
-| **Endpoint**      | **Method** | **Description** |
-|-------------------|------------|-----------------|
-| `/status`         | `GET`      | Returns the status of the service including version, commit hash, and current timestamp |
-| `/realms`         | `GET`      | Lists all available healthy realms within the Catalyst Network with user counts |
-| `/hot-scenes`     | `GET`      | Retrieves information about the most popular scenes currently active across all realms (up to 100 scenes) |
-| `/main/about`     | `GET`      | Provides detailed realm description for the default MAIN realm managed by Archipelago Workers, with geo-optimized content server selection |
 
 ## Getting Started
 
@@ -89,15 +79,8 @@ yarn build
 ### Configuration
 
 The service uses environment variables for configuration.
-
-A `.env.default` file is provided in the root directory with default environment variables. To customize the configuration:
-
-1. Copy `.env.default` to `.env`:
-   ```bash
-   cp .env.default .env
-   ```
-
-2. Edit `.env` to change values as needed
+Create a `.env` file in the root directory containing the environment variables for the service to run.
+Use the `.env.default` variables as an example.
 
 Key configuration variables include:
 
@@ -111,34 +94,6 @@ Key configuration variables include:
 - `BLACKLISTED_CATALYST`: Semicolon-separated list of catalyst URLs to exclude (optional)
 - `COMMIT_HASH`: Git commit hash for status endpoint (optional)
 - `CURRENT_VERSION`: Service version for status endpoint (optional)
-
-Example `.env` file:
-
-```bash
-# Archipelago configuration
-ARCHIPELAGO_STATS_URL=https://archipelago-stats.decentraland.zone
-ARCHIPELAGO_WS_CONNECTOR_URL=https://archipelago-ws-connector.decentraland.zone
-
-# Ethereum network configuration
-ETH_NETWORK=sepolia
-
-# HTTP server configuration
-HTTP_SERVER_HOST=0.0.0.0
-HTTP_SERVER_PORT=3000
-
-# Optional: Content server URL (defaults to https://peer.decentraland.org/content/)
-CONTENT_URL=https://peer.decentraland.zone/content/
-
-# Optional: HTTP base URL (auto-detected from request if not set)
-# HTTP_BASE_URL=
-
-# Optional: Blacklist catalysts (semicolon-separated list)
-# BLACKLISTED_CATALYST=
-
-# Optional: Service version information
-# COMMIT_HASH=
-# CURRENT_VERSION=
-```
 
 ### Running the Service
 
@@ -164,19 +119,6 @@ This will:
 - Start the HTTP server on the port specified by `HTTP_SERVER_PORT` (defaults to 3000)
 - Connect to the configured Ethereum network to fetch Catalyst nodes
 - Begin serving realm information and hot scenes data
-
-#### Running in production mode
-
-For production deployment, use the Docker image:
-
-```bash
-docker pull quay.io/decentraland/realm-provider:latest
-docker run --name realm-provider -p 3000:3000 \
-  --env ARCHIPELAGO_STATS_URL=https://archipelago-stats.decentraland.zone \
-  --env ARCHIPELAGO_WS_CONNECTOR_URL=https://archipelago-ws-connector.decentraland.zone \
-  --env ETH_NETWORK=mainnet \
-  quay.io/decentraland/realm-provider:latest
-```
 
 ## Testing
 
