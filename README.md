@@ -36,9 +36,6 @@ This service interacts with the following services:
 - **[Catalyst Network](https://github.com/decentraland/catalyst)**: Queries available Catalyst nodes for realm information, health status, and user counts via the `/about` endpoint
 - **[Archipelago Workers](https://github.com/decentraland/archipelago-workers)**: Provides the default MAIN realm status and configuration for Genesis City connections
 - **[Catalyst DAO Smart Contract](https://github.com/decentraland/catalyst-contracts)**: Retrieves the list of approved Catalyst nodes from the DAO on Ethereum mainnet
-
-External dependencies:
-
 - **Ethereum RPC**: Connects to Ethereum mainnet (or sepolia for testing) via `https://rpc.decentraland.org` to query the Catalyst DAO contract
 - **Cloudflare**: Uses CF-IPCountry header for geo-location based routing
 
@@ -82,29 +79,11 @@ The service uses environment variables for configuration.
 Create a `.env` file in the root directory containing the environment variables for the service to run.
 Use the `.env.default` variables as an example.
 
-Key configuration variables include:
-
-- `ARCHIPELAGO_STATS_URL`: URL for the Archipelago stats service (required)
-- `ARCHIPELAGO_WS_CONNECTOR_URL`: URL for the Archipelago WebSocket connector (required)
-- `ETH_NETWORK`: Ethereum network to use for DAO queries (`mainnet` or `sepolia`, defaults to `mainnet`)
-- `HTTP_SERVER_HOST`: Host for the HTTP server
-- `HTTP_SERVER_PORT`: Port for the HTTP server (defaults to `3000`)
-- `CONTENT_URL`: Default content server URL (optional, defaults to `https://peer.decentraland.org/content/`)
-- `HTTP_BASE_URL`: Base URL for the service (optional, auto-detected from request if not set)
-- `BLACKLISTED_CATALYST`: Semicolon-separated list of catalyst URLs to exclude (optional)
-- `COMMIT_HASH`: Git commit hash for status endpoint (optional)
-- `CURRENT_VERSION`: Service version for status endpoint (optional)
-
 ### Running the Service
 
 #### Setting up the environment
 
-The Realm Provider is a lightweight, stateless service with minimal external dependencies. Unlike other services in the ecosystem, it does not require local databases or message brokers. 
-
-The service only requires:
-- Network access to Ethereum RPC endpoint (via `https://rpc.decentraland.org`)
-- Network access to Archipelago services (configured via environment variables)
-- Network access to public Catalyst nodes
+The Realm Provider is a lightweight, stateless service with minimal external dependencies. Unlike other services in the ecosystem, it does not require local databases or message brokers.
 
 #### Running in development mode
 
@@ -114,11 +93,6 @@ To run the service in development mode:
 yarn build
 yarn start
 ```
-
-This will:
-- Start the HTTP server on the port specified by `HTTP_SERVER_PORT` (defaults to 3000)
-- Connect to the configured Ethereum network to fetch Catalyst nodes
-- Begin serving realm information and hot scenes data
 
 ## Testing
 
