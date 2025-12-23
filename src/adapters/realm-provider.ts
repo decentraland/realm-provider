@@ -38,31 +38,51 @@ export async function createCatalystsProvider({
   config
 }: Pick<AppComponents, 'logs' | 'fetch' | 'config'>): Promise<CatalystsProvider> {
   const logger = logs.getLogger('realm-provider')
-
-  const network: L1Network = ((await config.getString('ETH_NETWORK')) ?? 'mainnet') as L1Network
-  const contracts = l1Contracts[network]
-  if (!contracts) {
-    throw new Error(`Invalid ETH_NETWORK ${network}`)
-  }
-
   const opts = { fetch: fetch.fetch }
-  const mainnet = new HTTPProvider(`https://rpc.decentraland.org/${network}?project=realm-provider`, opts)
 
-  const contract = await createContract(contracts.catalyst, mainnet)
+  // Check for hardcoded catalyst list (useful for staging/testing)
+  const catalystOverride = await config.getString('CATALYST_OVERRIDE')
 
-  const daoCache = new LRUCache<number, string[]>({
-    max: 12,
-    ttl: 1000 * 60 * 60 * 24, // 1 day
-    fetchMethod: async function (_: number, staleValue: string[] | undefined) {
-      try {
-        const servers = await getCatalystServersFromDAO(contract)
-        return servers.map((s) => s.address)
-      } catch (err: any) {
-        logger.error(err)
-        return staleValue
+  let daoCache: LRUCache<number, string[]>
+
+  if (catalystOverride) {
+    // Use hardcoded list instead of DAO contract
+    const hardcodedCatalysts = catalystOverride.split(';').filter(Boolean)
+    logger.info(`Using hardcoded catalyst list: ${hardcodedCatalysts.join(', ')}`)
+
+    daoCache = new LRUCache<number, string[]>({
+      max: 12,
+      ttl: 1000 * 60 * 60 * 24, // 1 day
+      fetchMethod: async function () {
+        return hardcodedCatalysts
       }
+    })
+  } else {
+    // Use DAO contract (default behavior)
+    const network: L1Network = ((await config.getString('ETH_NETWORK')) ?? 'mainnet') as L1Network
+    const contracts = l1Contracts[network]
+    if (!contracts) {
+      throw new Error(`Invalid ETH_NETWORK ${network}`)
     }
-  })
+
+    const mainnet = new HTTPProvider(`https://rpc.decentraland.org/${network}?project=realm-provider`, opts)
+
+    const contract = await createContract(contracts.catalyst, mainnet)
+
+    daoCache = new LRUCache<number, string[]>({
+      max: 12,
+      ttl: 1000 * 60 * 60 * 24, // 1 day
+      fetchMethod: async function (_: number, staleValue: string[] | undefined) {
+        try {
+          const servers = await getCatalystServersFromDAO(contract)
+          return servers.map((s) => s.address)
+        } catch (err: any) {
+          logger.error(err)
+          return staleValue
+        }
+      }
+    })
+  }
 
   async function getHealhtyCatalysts(): Promise<RealmInfo[]> {
     const catalysts = await daoCache.fetch(1)

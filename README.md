@@ -8,16 +8,24 @@ This server interacts with the Catalyst Network, Archipelago Workers, and the Ca
 
 ## Table of Contents
 
-- [Features](#features)
-- [Dependencies & Related Services](#dependencies--related-services)
-- [API Documentation](#api-documentation)
-- [Getting Started](#getting-started)
-  - [Prerequisites](#prerequisites)
-  - [Installation](#installation)
-  - [Configuration](#configuration)
-  - [Running the Service](#running-the-service)
-- [Testing](#testing)
-- [AI Agent Context](#ai-agent-context)
+- [Realm Provider](#realm-provider)
+  - [Table of Contents](#table-of-contents)
+  - [Features](#features)
+  - [Dependencies \& Related Services](#dependencies--related-services)
+  - [API Documentation](#api-documentation)
+  - [Getting Started](#getting-started)
+    - [Prerequisites](#prerequisites)
+    - [Installation](#installation)
+    - [Configuration](#configuration)
+      - [Available Environment Variables](#available-environment-variables)
+      - [Example Configuration](#example-configuration)
+    - [Running the Service](#running-the-service)
+      - [Setting up the environment](#setting-up-the-environment)
+      - [Running in development mode](#running-in-development-mode)
+  - [Testing](#testing)
+    - [Running Tests](#running-tests)
+    - [Test Structure](#test-structure)
+  - [AI Agent Context](#ai-agent-context)
 
 ## Features
 
@@ -77,7 +85,39 @@ yarn build
 
 The service uses environment variables for configuration.
 Create a `.env` file in the root directory containing the environment variables for the service to run.
-Use the `.env.default` variables as an example.
+
+#### Available Environment Variables
+
+| Variable | Description | Default | Required |
+|----------|-------------|---------|----------|
+| `ETH_NETWORK` | Ethereum network to use for querying the Catalyst DAO contract | `mainnet` | No |
+| `CATALYST_OVERRIDE` | Semicolon-separated list of catalyst URLs to use instead of querying the DAO contract. Useful for staging/testing environments. | - | No |
+| `BLACKLISTED_CATALYST` | Semicolon-separated list of catalyst URLs to exclude from the available catalysts | - | No |
+| `CONTENT_URL` | Content server URL for fetching scene metadata | `https://peer.decentraland.org/content/` | No |
+| `HTTP_BASE_URL` | Base URL for the service (used for constructing URLs in responses) | Inferred from request | No |
+| `COMMIT_HASH` | Git commit hash of the deployed version | - | No |
+| `CURRENT_VERSION` | Current service version | - | No |
+
+#### Example Configuration
+
+**Production (using DAO contract):**
+```bash
+ETH_NETWORK=mainnet
+CONTENT_URL=https://peer.decentraland.org/content/
+```
+
+**Staging (using hardcoded catalysts):**
+```bash
+CATALYST_OVERRIDE=https://peer-stg1.decentraland.zone;https://peer-stg2.decentraland.zone;https://peer-stg3.decentraland.zone
+CONTENT_URL=https://peer-stg1.decentraland.zone/content/
+```
+
+**Development (testing specific catalysts):**
+```bash
+CATALYST_OVERRIDE=https://peer.decentraland.zone
+BLACKLISTED_CATALYST=https://peer-old.decentraland.org
+ETH_NETWORK=sepolia
+```
 
 ### Running the Service
 
