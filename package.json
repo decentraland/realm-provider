@@ -1,6 +1,9 @@
 {
   "name": "realm-provider",
   "license": "Apache-2.0",
+  "engines": {
+    "node": ">=24.0.0"
+  },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "start": "node --trace-warnings --abort-on-uncaught-exception --unhandled-rejections=strict dist/index.js",
