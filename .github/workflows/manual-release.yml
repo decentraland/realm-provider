@@ -25,7 +25,7 @@ jobs:
   pr:
     uses: decentraland/platform-actions/.github/workflows/apps-docker-manual-deployment.yml@main
     with:
-      service-name: realm-provider
+      service-name: realm-provider-ea
       deployment-environment: ${{ inputs.deployment-environment }}
       quay-registry-path: quay.io/decentraland/realm-provider:${{ inputs.docker-image }}
     secrets: inherit
