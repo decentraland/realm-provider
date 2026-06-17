@@ -7,9 +7,8 @@ on:
         required: true
         type: choice
         options:
-          - realm-provider
           - realm-provider-ea
-        default: realm-provider
+        default: realm-provider-ea
         description: Service name
       deployment-environment:
         required: true
