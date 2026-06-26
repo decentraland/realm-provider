@@ -1,4 +1,4 @@
-import { IHttpServerComponent } from '@well-known-components/interfaces'
+import { IHttpServerComponent } from '@dcl/core-commons'
 import { InvalidRequestError, NotFoundError, ServiceUnavailableError } from '../../types'
 
 export async function errorHandler(

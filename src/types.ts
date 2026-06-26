@@ -1,11 +1,10 @@
 import type {
   IConfigComponent,
   ILoggerComponent,
-  IHttpServerComponent,
   IBaseComponent,
-  IMetricsComponent,
-  IFetchComponent
+  IMetricsComponent
 } from '@well-known-components/interfaces'
+import type { IHttpServerComponent, IFetchComponent } from '@dcl/core-commons'
 import { metricDeclarations } from './metrics'
 import { CatalystsProvider } from './adapters/realm-provider'
 import { MainRealmProviderComponent } from './adapters/main-realm-provider'

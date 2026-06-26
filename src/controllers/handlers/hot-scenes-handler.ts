@@ -1,4 +1,5 @@
 import { HandlerContextWithPath } from '../../types'
+import { drainResponse } from '../../logic/fetch-utils'
 
 // The maximum amount of hot scenes returned
 const HOT_SCENES_LIMIT = 100
@@ -51,6 +52,7 @@ export async function hotScenesHandler(
   const parcelPromises = catalysts.map(async ({ url, about }) => {
     const response = await fetch.fetch(`${url}/stats/parcels`, { timeout: 1000 })
     if (!about.configurations.realmName) {
+      await drainResponse(response)
       throw new Error(`ignoring ${url} since has no realmName`)
     }
 

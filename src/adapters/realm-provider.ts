@@ -1,5 +1,5 @@
 import { AppComponents, RealmInfo } from '../types'
-import RequestManager, { bytesToHex, ContractFactory, HTTPProvider } from 'eth-connect'
+import RequestManager, { bytesToHex, ContractFactory, FetchFunction, HTTPProvider } from 'eth-connect'
 import {
   catalystAbi,
   CatalystByIdResult,
@@ -9,6 +9,7 @@ import {
   L1Network
 } from '@dcl/catalyst-contracts'
 import { LRUCache } from 'lru-cache'
+import { drainResponse } from '../logic/fetch-utils'
 
 export type CatalystsProvider = {
   getHealhtyCatalysts(): Promise<RealmInfo[]>
@@ -46,7 +47,12 @@ export async function createCatalystsProvider({
   }
 
   const opts = { fetch: fetch.fetch }
-  const mainnet = new HTTPProvider(`https://rpc.decentraland.org/${network}?project=realm-provider`, opts)
+  // eth-connect's HTTPProvider expects a loosely-typed FetchFunction (e.g. `mode?: string`), while
+  // the native fetch component (@dcl/fetch-component) is stricter (`mode?: RequestMode`). They are
+  // structurally compatible, so cast through unknown to satisfy the compiler.
+  const mainnet = new HTTPProvider(`https://rpc.decentraland.org/${network}?project=realm-provider`, {
+    fetch: fetch.fetch as unknown as FetchFunction
+  })
 
   const contract = await createContract(contracts.catalyst, mainnet)
 
@@ -77,6 +83,7 @@ export async function createCatalystsProvider({
           logger.info(`Fetching /about from ${catalyst}`)
           const response = await opts.fetch(`${catalyst}/about`, { timeout: 1000 })
           if (!response.ok) {
+            await drainResponse(response)
             logger.warn(`Failed to fetch /about from ${catalyst}: ${response.statusText}`)
             return null
           }
