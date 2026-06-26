@@ -9,6 +9,7 @@ import {
   L1Network
 } from '@dcl/catalyst-contracts'
 import { LRUCache } from 'lru-cache'
+import { drainResponse } from '../logic/fetch-utils'
 
 export type CatalystsProvider = {
   getHealhtyCatalysts(): Promise<RealmInfo[]>
@@ -46,7 +47,9 @@ export async function createCatalystsProvider({
   }
 
   const opts = { fetch: fetch.fetch }
-  const mainnet = new HTTPProvider(`https://rpc.decentraland.org/${network}?project=realm-provider`, opts)
+  const mainnet = new HTTPProvider(`https://rpc.decentraland.org/${network}?project=realm-provider`, {
+    fetch: fetch.fetch
+  })
 
   const contract = await createContract(contracts.catalyst, mainnet)
 
@@ -77,6 +80,7 @@ export async function createCatalystsProvider({
           logger.info(`Fetching /about from ${catalyst}`)
           const response = await opts.fetch(`${catalyst}/about`, { timeout: 1000 })
           if (!response.ok) {
+            await drainResponse(response)
             logger.warn(`Failed to fetch /about from ${catalyst}: ${response.statusText}`)
             return null
           }
