@@ -1,5 +1,5 @@
 import { AppComponents, RealmInfo } from '../types'
-import RequestManager, { bytesToHex, ContractFactory, FetchFunction, HTTPProvider } from 'eth-connect'
+import RequestManager, { bytesToHex, ContractFactory, HTTPProvider } from 'eth-connect'
 import {
   catalystAbi,
   CatalystByIdResult,
@@ -47,11 +47,8 @@ export async function createCatalystsProvider({
   }
 
   const opts = { fetch: fetch.fetch }
-  // eth-connect's HTTPProvider expects a loosely-typed FetchFunction (e.g. `mode?: string`), while
-  // the native fetch component (@dcl/fetch-component) is stricter (`mode?: RequestMode`). They are
-  // structurally compatible, so cast through unknown to satisfy the compiler.
   const mainnet = new HTTPProvider(`https://rpc.decentraland.org/${network}?project=realm-provider`, {
-    fetch: fetch.fetch as unknown as FetchFunction
+    fetch: fetch.fetch
   })
 
   const contract = await createContract(contracts.catalyst, mainnet)

@@ -1677,10 +1677,10 @@ esutils@^2.0.2:
   resolved "https://registry.npmjs.org/esutils/-/esutils-2.0.3.tgz"
   integrity sha512-kVscqXk4OCp68SZ0dkgEKVi6/8ij300KBWTJq32P/dYeWTSwK41WyTxalN1eRmA5Z9UU/LX9D7FWSmV9SAYx6g==
 
-eth-connect@^6.0.3, eth-connect@^6.2.4:
-  version "6.2.4"
-  resolved "https://registry.npmjs.org/eth-connect/-/eth-connect-6.2.4.tgz"
-  integrity sha512-K0+g+pZoWkcJKKc4hwlYvaruoMBFcARoULIdf50bz/Zk9YdgFoKPjlRQWAtBgSDfxJS7AAHqg40k2Z/uQI0aNw==
+eth-connect@^6.0.3, eth-connect@^6.4.0:
+  version "6.4.0"
+  resolved "https://registry.npmjs.org/eth-connect/-/eth-connect-6.4.0.tgz"
+  integrity sha512-lbuFFE0qNvGutNH4CiP/fvlbIawK0DARNdmG7qoyOclFMSt1EzqvaLHxpLcx5Gjk/7TDMrguDTHjZQM/6Xt77Q==
 
 ethereum-cryptography@^2.0.0:
   version "2.2.1"
