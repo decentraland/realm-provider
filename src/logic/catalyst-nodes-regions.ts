@@ -41,11 +41,6 @@ export const CATALYST_NODES: CatalystNode[] = [
     location: 'CA'
   },
   {
-    url: 'peer.kyllian.me',
-    country: 'FR',
-    location: 'France'
-  },
-  {
     url: 'peer.uadevops.com',
     country: 'US',
     location: 'CA'
@@ -57,18 +52,8 @@ export const CATALYST_NODES: CatalystNode[] = [
   },
   // ---- DEV NODES ----
   {
-    url: 'peer-ap1.decentraland.zone',
-    country: 'SG',
-    location: 'Singapore'
-  },
-  {
     url: 'peer.decentraland.zone',
     country: 'US',
     location: 'US'
   },
-  {
-    url: 'peer-ue-2.decentraland.zone',
-    country: 'IE',
-    location: 'Ireland'
-  }
 ]
