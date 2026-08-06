@@ -53,6 +53,11 @@ export async function createCatalystsProvider({
 
   const contract = await createContract(contracts.catalyst, mainnet)
 
+  const blacklistedCatalysts = ((await config.getString('BLACKLISTED_CATALYST')) || '').split(';').filter(Boolean)
+  if (blacklistedCatalysts.length > 0) {
+    logger.info(`Blacklisted catalysts: ${blacklistedCatalysts.join(', ')}`)
+  }
+
   const daoCache = new LRUCache<number, string[]>({
     max: 12,
     ttl: 1000 * 60 * 60 * 24, // 1 day
@@ -74,8 +79,16 @@ export async function createCatalystsProvider({
       return []
     }
 
+    const allowedCatalysts =
+      blacklistedCatalysts.length > 0
+        ? catalysts.filter(
+            (catalyst) =>
+              !blacklistedCatalysts.some((blocked) => catalyst.toLowerCase().includes(blocked.toLowerCase()))
+          )
+        : catalysts
+
     const catalystsInfo = await Promise.all(
-      catalysts.map(async (catalyst) => {
+      allowedCatalysts.map(async (catalyst) => {
         try {
           logger.info(`Fetching /about from ${catalyst}`)
           const response = await opts.fetch(`${catalyst}/about`, { timeout: 1000 })
