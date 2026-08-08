@@ -15,12 +15,9 @@ export type CatalystsProvider = {
   getHealhtyCatalysts(): Promise<RealmInfo[]>
 }
 
-// Option A: TTL for the healthy-catalysts cache (30 seconds)
-const CATALYSTS_CACHE_TTL_MS = 30_000
-
-// Option B: Circuit breaker thresholds
-const CB_FAILURE_THRESHOLD = 3 // consecutive errors before opening circuit
-const CB_COOLOFF_MS = 60_000 // how long to skip an open-circuit catalyst (1 minute)
+const DEFAULT_CATALYSTS_CACHE_TTL_MS = 30_000
+const DEFAULT_CB_FAILURE_THRESHOLD = 3
+const DEFAULT_CB_COOLOFF_MS = 60_000
 
 type CircuitState = {
   failures: number
@@ -70,6 +67,12 @@ export async function createCatalystsProvider({
     logger.info(`Blacklisted catalysts: ${blacklistedCatalysts.join(', ')}`)
   }
 
+  const cacheTtlMs =
+    parseInt((await config.getString('CATALYSTS_CACHE_TTL_MS')) || '', 10) || DEFAULT_CATALYSTS_CACHE_TTL_MS
+  const cbFailureThreshold =
+    parseInt((await config.getString('CB_FAILURE_THRESHOLD')) || '', 10) || DEFAULT_CB_FAILURE_THRESHOLD
+  const cbCooloffMs = parseInt((await config.getString('CB_COOLOFF_MS')) || '', 10) || DEFAULT_CB_COOLOFF_MS
+
   const daoCache = new LRUCache<number, string[]>({
     max: 12,
     ttl: 1000 * 60 * 60 * 24, // 1 day
@@ -100,10 +103,10 @@ export async function createCatalystsProvider({
     const existing = circuitBreaker.get(url)
     const state: CircuitState = existing ?? { failures: 0, openUntil: 0 }
     state.failures += 1
-    if (state.failures >= CB_FAILURE_THRESHOLD) {
-      state.openUntil = Date.now() + CB_COOLOFF_MS
+    if (state.failures >= cbFailureThreshold) {
+      state.openUntil = Date.now() + cbCooloffMs
       logger.warn(
-        `Circuit breaker opened for ${url} after ${state.failures} consecutive failures — skipping for ${CB_COOLOFF_MS / 1000}s`
+        `Circuit breaker opened for ${url} after ${state.failures} consecutive failures — skipping for ${cbCooloffMs / 1000}s`
       )
     }
     circuitBreaker.set(url, state)
@@ -115,7 +118,7 @@ export async function createCatalystsProvider({
   // on a new catalyst poll and can't saturate the event loop.
   const catalystsCache = new LRUCache<number, RealmInfo[]>({
     max: 1,
-    ttl: CATALYSTS_CACHE_TTL_MS,
+    ttl: cacheTtlMs,
     allowStale: true,
     allowStaleOnFetchRejection: true,
     fetchMethod: async function (_: number, staleValue: RealmInfo[] | undefined) {
@@ -132,6 +135,8 @@ export async function createCatalystsProvider({
                 !blacklistedCatalysts.some((blocked) => catalyst.toLowerCase().includes(blocked.toLowerCase()))
             )
           : catalysts
+
+      let hadSuccessfulResponse = false
 
       const catalystsInfo = await Promise.all(
         allowedCatalysts.map(async (catalyst) => {
@@ -150,12 +155,13 @@ export async function createCatalystsProvider({
               return null
             }
             const info = await response.json()
+            // Any successful HTTP response resets the circuit breaker for this
+            // catalyst, regardless of its application-level health status.
+            recordSuccess(catalyst)
+            hadSuccessfulResponse = true
             if (info.healthy && info.acceptingUsers) {
-              recordSuccess(catalyst)
               return { about: info, url: catalyst }
             } else {
-              // Application-level rejection (not accepting users) — not a network error,
-              // so we do not count this as a circuit breaker failure.
               logger.info(`Catalyst ${catalyst} is not healthy or not accepting users`)
               return null
             }
@@ -169,9 +175,11 @@ export async function createCatalystsProvider({
 
       const results = catalystsInfo.filter(Boolean) as RealmInfo[]
 
-      // Preserve stale data when all catalysts fail (network outage or all circuits open)
-      // so callers always get the last-known-good list rather than an empty array.
-      if (results.length === 0 && staleValue && staleValue.length > 0) {
+      // Only preserve stale data when ALL catalysts failed due to transport
+      // errors or were skipped by an open circuit. If any catalyst responded
+      // successfully (even with healthy=false / acceptingUsers=false), the
+      // fresh result reflects actual application state and must replace stale data.
+      if (results.length === 0 && !hadSuccessfulResponse && staleValue && staleValue.length > 0) {
         logger.warn('All catalyst fetches failed or circuit-open — serving stale data')
         return staleValue
       }
