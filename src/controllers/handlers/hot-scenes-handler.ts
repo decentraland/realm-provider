@@ -55,6 +55,10 @@ export async function hotScenesHandler(
       await drainResponse(response)
       throw new Error(`ignoring ${url} since has no realmName`)
     }
+    if (!response.ok) {
+      await drainResponse(response)
+      throw new Error(`/stats/parcels returned ${response.status} for ${url}`)
+    }
 
     const parcelsResponse = (await response.json()) as ParcelsResponse
     return { serverName: about.configurations.realmName, parcels: parcelsResponse.parcels }
@@ -64,6 +68,10 @@ export async function hotScenesHandler(
     parcelPromises.push(
       (async () => {
         const response = await fetch.fetch(`${archipelagoStatsUrl}/parcels`)
+        if (!response.ok) {
+          await drainResponse(response)
+          throw new Error(`/parcels returned ${response.status} for ${archipelagoStatsUrl}`)
+        }
         const parcelsResponse = (await response.json()) as ParcelsResponse
         return { serverName: mainRealmStatus.realmName, parcels: parcelsResponse.parcels }
       })()
