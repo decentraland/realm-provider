@@ -22,14 +22,17 @@
 **External Dependencies:**
 
 - Catalyst Network: Queries available Catalyst nodes for realm information
-- Archipelago Workers: MAIN realm status and configuration
-- Stats Service: Hot scenes data (from archipelago-workers stats service)
+- Archipelago Workers: MAIN realm status and configuration (`PRESENCE_SOURCE=archipelago`)
+- Stats Service: Parcel peer counts for hot scenes, and `/core-status` for the MAIN realm user count (`PRESENCE_SOURCE=archipelago`)
+- Pulse: `/about` (MAIN realm `userCount`) and `/health` (liveness) (`PRESENCE_SOURCE=pulse`)
+- comms-gatekeeper: `/hot-scenes`, proxied through unchanged (`PRESENCE_SOURCE=pulse`)
 
 **Key Concepts:**
 
 - **Realm**: A communication/render configuration specifying which Catalyst, Lambdas, and comms services to use
 - **MAIN Realm**: Default realm managed by Archipelago workers for Genesis City
 - **Hot Scenes**: Popular/active scenes for user discovery
+- **Presence source**: `PRESENCE_SOURCE` (`archipelago` | `pulse`) selects where online-player information comes from. It is a rollback switch and defaults to `archipelago`, today's behaviour.
 
 **Scope and Responsibilities — What Realm Provider Is NOT:**
 

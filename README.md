@@ -23,7 +23,7 @@ This server interacts with the Catalyst Network, Archipelago Workers, and the Ca
 
 - **Realm Discovery & Selection**: Discover all available Catalyst realms with real-time user counts, automatic health monitoring, and filtering of catalyst nodes
 - **Geo-Location Optimization**: Intelligent content server selection based on user geographic location using Cloudflare's CF-IPCountry header and Haversine distance calculation to route users to the nearest healthy Catalyst node
-- **Hot Scenes Tracking**: Real-time aggregation of the most popular scenes across all realms with scene popularity metrics and user distribution per realm
+- **Hot Scenes Tracking**: Real-time list of the most popular scenes, either aggregated from Archipelago stats or proxied from comms-gatekeeper, depending on `PRESENCE_SOURCE`
 - **Main Realm Services**: Comprehensive service information for the main realm managed by Archipelago Workers, including content server, communications, BFF, and Lambdas configurations
 - **Catalyst Version Filtering**: Automatic filtering to prefer updated Catalyst nodes over outdated versions
 - **Health Monitoring**: Service status and version information with health check endpoints for integration monitoring
@@ -34,7 +34,9 @@ This server interacts with the Catalyst Network, Archipelago Workers, and the Ca
 This service interacts with the following services:
 
 - **[Catalyst Network](https://github.com/decentraland/catalyst)**: Queries available Catalyst nodes for realm information, health status, and user counts via the `/about` endpoint
-- **[Archipelago Workers](https://github.com/decentraland/archipelago-workers)**: Provides the default MAIN realm status and configuration for Genesis City connections
+- **[Archipelago Workers](https://github.com/decentraland/archipelago-workers)**: Provides the default MAIN realm status and configuration for Genesis City connections (`PRESENCE_SOURCE=archipelago`)
+- **Pulse**: Source of online-player information — `/about` for the MAIN realm user count and `/health` for its liveness (`PRESENCE_SOURCE=pulse`)
+- **[comms-gatekeeper](https://github.com/decentraland/comms-gatekeeper)**: Computes `/hot-scenes` from its presence map; this service proxies it (`PRESENCE_SOURCE=pulse`)
 - **[Catalyst DAO Smart Contract](https://github.com/decentraland/catalyst-contracts)**: Retrieves the list of approved Catalyst nodes from the DAO on Ethereum mainnet
 - **Ethereum RPC**: Connects to Ethereum mainnet (or sepolia for testing) via `https://rpc.decentraland.org` to query the Catalyst DAO contract
 - **Cloudflare**: Uses CF-IPCountry header for geo-location based routing
@@ -78,6 +80,23 @@ yarn build
 The service uses environment variables for configuration.
 Create a `.env` file in the root directory containing the environment variables for the service to run.
 Use the `.env.default` variables as an example.
+
+#### Presence source
+
+`PRESENCE_SOURCE` selects where online-player information comes from. It is a rollback switch: it
+defaults to `archipelago`, so a deploy with no config change behaves exactly as before.
+
+| Variable | Default | Used when | Description |
+| --- | --- | --- | --- |
+| `PRESENCE_SOURCE` | `archipelago` | always | `archipelago` or `pulse`. Any other value is read as `archipelago`. |
+| `ARCHIPELAGO_STATS_URL` | `https://archipelago-stats.decentraland.org` | `archipelago` | `/parcels` feeds `/hot-scenes`; `/core-status` feeds the MAIN realm user count. |
+| `PULSE_URL` | _(none — required when `PRESENCE_SOURCE=pulse`)_ | `pulse` | `/about` gives `userCount` for the MAIN realm, `/health` gives its liveness (200 == healthy). |
+| `COMMS_GATEKEEPER_URL` | `https://comms-gatekeeper.decentraland.org` | `pulse` | `/hot-scenes` is proxied through unchanged (5 s timeout, 10 s cache). |
+| `ARCHIPELAGO_WS_CONNECTOR_URL` | `https://archipelago-ws-connector.decentraland.org` | always | Advertised to clients as the MAIN realm comms adapter. |
+
+In `pulse` mode `GET /hot-scenes` is a straight proxy of `${COMMS_GATEKEEPER_URL}/hot-scenes`: the
+bare array is passed through unchanged, successful answers are cached for 10 seconds, and while the
+gatekeeper is warming (`503`) or unreachable the last cached array is served instead.
 
 ### Running the Service
 

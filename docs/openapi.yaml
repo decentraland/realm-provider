@@ -108,6 +108,9 @@ paths:
       description: |
         Returns all healthy catalyst realms plus the main realm if available.
         Each realm includes its server name, URL, and current user count.
+
+        Catalyst nodes no longer run comms, so their `/about` carries no user count: third-party
+        realms are always reported with `usersCount: 0`. Only the main realm reports a real count.
       operationId: getRealms
       security: []
       tags:
@@ -127,10 +130,10 @@ paths:
                   usersCount: 150
                 - serverName: catalyst-1
                   url: https://peer-ec1.decentraland.org
-                  usersCount: 75
+                  usersCount: 0
                 - serverName: catalyst-2
                   url: https://peer-wc1.decentraland.org
-                  usersCount: 42
+                  usersCount: 0
         '400':
           description: Bad request
           content:
@@ -146,10 +149,17 @@ paths:
 
   /hot-scenes:
     get:
-      summary: Get hot scenes across all realms
+      summary: Get hot scenes
       description: |
-        Returns up to 100 scenes sorted by total user count across all realms.
-        Each scene includes its ID, name, coordinates, parcels, user count, and realm distribution.
+        Returns up to 100 scenes sorted by total user count, as a bare array.
+
+        The source depends on the `PRESENCE_SOURCE` environment variable:
+          * `archipelago` (default): scenes are aggregated from `ARCHIPELAGO_STATS_URL/parcels`, and
+            each entry carries a `realms` distribution.
+          * `pulse`: the response of `COMMS_GATEKEEPER_URL/hot-scenes` is proxied through unchanged
+            (5 second timeout, successful answers cached for 10 seconds). While comms-gatekeeper is
+            warming up or unreachable the last cached array is served; if nothing is cached yet, its
+            `503` is passed on.
       operationId: getHotScenes
       security: []
       tags:
@@ -183,6 +193,14 @@ paths:
                 $ref: '#/components/schemas/Error'
         '500':
           description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          description: |
+            Only when `PRESENCE_SOURCE=pulse`: comms-gatekeeper is still priming its presence map, or
+            it could not be reached, and nothing is cached yet.
           content:
             application/json:
               schema:
@@ -260,7 +278,9 @@ components:
           example: https://peer.decentraland.org
         usersCount:
           type: number
-          description: Current number of users connected to this realm
+          description: |
+            Current number of users connected to this realm. Always 0 for third-party catalyst
+            realms, which no longer report a comms user count.
           example: 150
 
     HotSceneInfo:
