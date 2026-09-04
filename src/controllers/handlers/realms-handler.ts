@@ -24,8 +24,10 @@ export async function realmsHandler(
   const realms: Realm[] = []
 
   for (const { url, about } of catalysts) {
-    if (about.comms && about.configurations.realmName) {
-      realms.push({ serverName: about.configurations.realmName, url, usersCount: about.comms.usersCount || 0 })
+    if (about.configurations.realmName) {
+      // Catalysts no longer run comms, so their /about carries no comms section and no meaningful
+      // user count. The field stays for clients that read it, pinned at 0.
+      realms.push({ serverName: about.configurations.realmName, url, usersCount: 0 })
     }
   }
 
