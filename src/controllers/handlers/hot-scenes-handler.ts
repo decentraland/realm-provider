@@ -1,8 +1,17 @@
-import { HandlerContextWithPath } from '../../types'
+import { IHttpServerComponent } from '@dcl/core-commons'
+import { HandlerContextWithPath, ServiceUnavailableError } from '../../types'
 import { drainResponse } from '../../logic/fetch-utils'
+import { getPresenceSource } from '../../logic/presence-source'
 
 // The maximum amount of hot scenes returned
 const HOT_SCENES_LIMIT = 100
+
+// How long we wait for comms-gatekeeper before falling back to whatever we have cached.
+const GATEKEEPER_TIMEOUT_MS = 5000
+
+// How long a successful comms-gatekeeper answer is reused. /hot-scenes is a high-traffic,
+// low-precision endpoint, so a short cache keeps the gatekeeper from being hammered.
+const GATEKEEPER_CACHE_TTL_MS = 10000
 
 type Realm = {
   serverName: string
@@ -31,54 +40,70 @@ export type ParcelsResponse = {
   ]
 }
 
+export type HotScenesResponse = {
+  status?: number
+  body: IHttpServerComponent.JsonBody
+}
+
+type HotScenesComponents = Pick<
+  HandlerContextWithPath<'mainRealmProvider' | 'config' | 'content' | 'fetch', '/hot-scenes'>,
+  'components'
+>['components']
+
+// The last array comms-gatekeeper answered, kept so a warming or unreachable gatekeeper does not
+// blank out /hot-scenes for every client.
+let gatekeeperCache: { body: IHttpServerComponent.JsonBody; cachedAt: number } | undefined
+
 function getCoords(coordsAsString: string): [number, number] {
   return coordsAsString.split(',').map((part) => parseInt(part, 10)) as any
 }
 
-export async function hotScenesHandler(
-  context: Pick<
-    HandlerContextWithPath<'catalystsProvider' | 'mainRealmProvider' | 'config' | 'content' | 'fetch', '/hot-scenes'>,
-    'components' | 'url'
-  >
-): Promise<{ body: HotSceneInfo[] }> {
-  const {
-    components: { catalystsProvider, mainRealmProvider, config, fetch, content }
-  } = context
+/**
+ * `pulse` mode: comms-gatekeeper owns the presence map, so it computes /hot-scenes. We proxy its
+ * bare array through untouched.
+ */
+async function proxyHotScenes({ config, fetch }: HotScenesComponents): Promise<HotScenesResponse> {
+  const gatekeeperUrl = await config.requireString('COMMS_GATEKEEPER_URL')
 
-  const archipelagoStatsUrl = await config.requireString('ARCHIPELAGO_STATS_URL')
-  const catalysts = await catalystsProvider.getHealhtyCatalysts()
-  const mainRealmStatus = await mainRealmProvider.getStatus()
-
-  const parcelPromises = catalysts.map(async ({ url, about }) => {
-    const response = await fetch.fetch(`${url}/stats/parcels`, { timeout: 1000 })
-    if (!about.configurations.realmName) {
-      await drainResponse(response)
-      throw new Error(`ignoring ${url} since has no realmName`)
-    }
-    if (!response.ok) {
-      await drainResponse(response)
-      throw new Error(`/stats/parcels returned ${response.status} for ${url}`)
-    }
-
-    const parcelsResponse = (await response.json()) as ParcelsResponse
-    return { serverName: about.configurations.realmName, parcels: parcelsResponse.parcels }
-  })
-
-  if (mainRealmStatus.healthy) {
-    parcelPromises.push(
-      (async () => {
-        const response = await fetch.fetch(`${archipelagoStatsUrl}/parcels`)
-        if (!response.ok) {
-          await drainResponse(response)
-          throw new Error(`/parcels returned ${response.status} for ${archipelagoStatsUrl}`)
-        }
-        const parcelsResponse = (await response.json()) as ParcelsResponse
-        return { serverName: mainRealmStatus.realmName, parcels: parcelsResponse.parcels }
-      })()
-    )
+  if (gatekeeperCache && Date.now() - gatekeeperCache.cachedAt < GATEKEEPER_CACHE_TTL_MS) {
+    return { body: gatekeeperCache.body }
   }
 
-  const realmParcels = await Promise.allSettled(parcelPromises)
+  try {
+    const response = await fetch.fetch(`${gatekeeperUrl}/hot-scenes`, { timeout: GATEKEEPER_TIMEOUT_MS })
+
+    if (!response.ok) {
+      // The gatekeeper answers 503 {"ok":false,"error":"warming"} until its presence map is primed.
+      const body = await response.json()
+      if (gatekeeperCache) {
+        return { body: gatekeeperCache.body }
+      }
+      return { status: response.status, body }
+    }
+
+    const body = await response.json()
+    gatekeeperCache = { body, cachedAt: Date.now() }
+    return { body }
+  } catch (err: any) {
+    if (gatekeeperCache) {
+      return { body: gatekeeperCache.body }
+    }
+    throw new ServiceUnavailableError(`Could not reach ${gatekeeperUrl}/hot-scenes: ${err.message}`)
+  }
+}
+
+/**
+ * `archipelago` mode: aggregate the main realm's per-parcel peer counts from archipelago-stats and
+ * join them with the scenes occupying those parcels.
+ */
+async function aggregateHotScenes({
+  mainRealmProvider,
+  config,
+  fetch,
+  content
+}: HotScenesComponents): Promise<HotScenesResponse> {
+  const archipelagoStatsUrl = await config.requireString('ARCHIPELAGO_STATS_URL')
+  const mainRealmStatus = await mainRealmProvider.getStatus()
 
   type Info = {
     usersCount: number
@@ -87,10 +112,16 @@ export async function hotScenesHandler(
 
   const infoByParcel = new Map<string, Info>()
 
-  for (const result of realmParcels) {
-    if (result.status === 'fulfilled') {
-      const { serverName, parcels } = result.value
-      for (const { peersCount, parcel } of parcels) {
+  if (mainRealmStatus.healthy) {
+    try {
+      const response = await fetch.fetch(`${archipelagoStatsUrl}/parcels`)
+      if (!response.ok) {
+        await drainResponse(response)
+        throw new Error(`/parcels returned ${response.status} for ${archipelagoStatsUrl}`)
+      }
+
+      const parcelsResponse = (await response.json()) as ParcelsResponse
+      for (const { peersCount, parcel } of parcelsResponse.parcels) {
         const coord = `${parcel.x},${parcel.y}`
         const info = infoByParcel.get(coord) || {
           usersCount: 0,
@@ -98,11 +129,13 @@ export async function hotScenesHandler(
         }
         info.usersCount += peersCount
         info.realms.push({
-          serverName,
+          serverName: mainRealmStatus.realmName,
           usersCount: peersCount
         })
         infoByParcel.set(coord, info)
       }
+    } catch {
+      // archipelago-stats being unavailable must not fail the endpoint: serve what we can.
     }
   }
 
@@ -144,4 +177,16 @@ export async function hotScenesHandler(
   return {
     body: hotScenes.sort((scene1, scene2) => scene2.usersTotalCount - scene1.usersTotalCount).slice(0, HOT_SCENES_LIMIT)
   }
+}
+
+export async function hotScenesHandler(
+  context: Pick<
+    HandlerContextWithPath<'mainRealmProvider' | 'config' | 'content' | 'fetch', '/hot-scenes'>,
+    'components'
+  >
+): Promise<HotScenesResponse> {
+  const { components } = context
+  const presenceSource = await getPresenceSource(components.config)
+
+  return presenceSource === 'pulse' ? proxyHotScenes(components) : aggregateHotScenes(components)
 }
