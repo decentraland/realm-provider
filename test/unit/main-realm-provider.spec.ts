@@ -31,7 +31,7 @@ type MockResponse = { status?: number; ok?: boolean; json?: () => Promise<any> }
 
 function makeFetch(routes: Record<string, MockResponse>) {
   return {
-    fetch: jest.fn((url: string) => {
+    fetch: jest.fn((url: string, _init?: any) => {
       const key = Object.keys(routes).find((route) => url.endsWith(route))
       if (!key) {
         return Promise.reject(new Error(`Unexpected fetch to ${url}`))
@@ -97,8 +97,8 @@ describe('main realm provider', () => {
       const provider = await createMainRealmProviderComponent({ config: pulseConfig(), fetch, logs })
       const status = await provider.getStatus()
 
-      expect(fetch.fetch).toHaveBeenCalledWith(`${PULSE_URL}/realms`)
-      expect(fetch.fetch).toHaveBeenCalledWith(`${PULSE_URL}/health`)
+      expect(fetch.fetch).toHaveBeenCalledWith(`${PULSE_URL}/realms`, expect.anything())
+      expect(fetch.fetch).toHaveBeenCalledWith(`${PULSE_URL}/health`, expect.anything())
       expect(status.healthy).toBe(true)
       // 4 peers in `main`, not the 5 that /about counts across every realm
       expect(status.userCount).toBe(packMainPeers)
@@ -185,6 +185,81 @@ describe('main realm provider', () => {
 
       expect(provider.realmName).toBe('main')
       expect(fetch.fetch).not.toHaveBeenCalled()
+    })
+
+    it('bounds both Pulse reads with the same 5 second deadline', async () => {
+      const fetch = pulseFetch({ json: () => Promise.resolve(packRealms.body) })
+
+      const provider = await createMainRealmProviderComponent({ config: pulseConfig(), fetch, logs })
+      await provider.getStatus()
+
+      const deadline = { timeout: 5000, abortController: expect.any(AbortController) }
+      expect(fetch.fetch).toHaveBeenCalledWith(`${PULSE_URL}/realms`, deadline)
+      expect(fetch.fetch).toHaveBeenCalledWith(`${PULSE_URL}/health`, deadline)
+    })
+
+    it('degrades to an unhealthy realm with no users when a Pulse read never answers', async () => {
+      jest.useFakeTimers()
+      try {
+        // Pulse accepts the connection and never answers (GC pause, deadlocked handler, an LB
+        // holding the socket open). undici applies no default request timeout, so only the
+        // deadline this provider arms can end the call.
+        const fetch = {
+          fetch: jest.fn((url: string, init?: any) => {
+            if (url.endsWith('/status')) {
+              return Promise.resolve({ ok: true, status: 200, bodyUsed: false, body: null, json: connectorStatus.json })
+            }
+            return new Promise((_resolve, reject) => {
+              init?.abortController?.signal.addEventListener('abort', () => reject(new Error('aborted')))
+            })
+          })
+        } as any
+
+        const provider = await createMainRealmProviderComponent({ config: pulseConfig(), fetch, logs })
+        const pending = provider.getStatus()
+        let settled = false
+        pending.then(
+          () => (settled = true),
+          () => (settled = true)
+        )
+
+        await jest.advanceTimersByTimeAsync(4999)
+        expect(settled).toBe(false)
+
+        await jest.advanceTimersByTimeAsync(1)
+        await expect(pending).resolves.toEqual({
+          healthy: false,
+          userCount: 0,
+          realmName: 'main',
+          adapter: `archipelago:archipelago:wss://archipelago-ws-connector.decentraland.org/ws`
+        })
+      } finally {
+        jest.useRealTimers()
+      }
+    })
+
+    it('cancels the sibling Pulse response when the other read fails', async () => {
+      const cancel = jest.fn(() => Promise.resolve())
+      const fetch = {
+        fetch: jest.fn((url: string) => {
+          if (url.endsWith('/realms')) {
+            return Promise.reject(new Error('ECONNRESET'))
+          }
+          if (url.endsWith('/health')) {
+            return Promise.resolve({ ok: true, status: 200, bodyUsed: false, body: { cancel } })
+          }
+          return Promise.resolve({ ok: true, status: 200, bodyUsed: false, body: null, json: connectorStatus.json })
+        })
+      } as any
+
+      const provider = await createMainRealmProviderComponent({ config: pulseConfig(), fetch, logs })
+      const status = await provider.getStatus()
+
+      expect(status.healthy).toBe(false)
+      expect(status.userCount).toBe(0)
+      // Promise.all abandons the /health response when /realms rejects, and undici keeps that
+      // socket pinned until GC. The body must be cancelled instead.
+      expect(cancel).toHaveBeenCalledTimes(1)
     })
 
     it('fails at component creation when PULSE_URL is not configured', async () => {

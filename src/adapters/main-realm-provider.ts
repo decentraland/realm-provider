@@ -8,6 +8,11 @@ type PulseRealm = {
   peers?: number
 }
 
+// How long we wait for Pulse before reporting the realm as unavailable. undici applies no default
+// request timeout, so without a deadline a Pulse pod that accepts the connection and never answers
+// would hang /realms and /main/about until the client gives up. Same 5 s the /hot-scenes proxy uses.
+const PULSE_TIMEOUT_MS = 5000
+
 export type CoreStatus = {
   healthy: boolean
   userCount: number
@@ -52,24 +57,51 @@ export async function createMainRealmProviderComponent({
     // `userCount` totals every realm (worlds and local scenes included), while this realm's
     // `usersCount` has always meant Genesis City only.
     fetchCoreStatus = async function fetchPulseStatus(): Promise<MainRealmStatus> {
-      const [realmsResponse, healthResponse] = await Promise.all([
-        fetch.fetch(`${pulseUrl}/realms`),
-        fetch.fetch(`${pulseUrl}/health`)
-      ])
+      // One deadline for both reads, the body read included: the fetch component's own `timeout`
+      // stops covering the request as soon as the headers are in, so we hold the AbortController
+      // it uses and abort it ourselves. A timeout rejects, and the getStatus catch below turns
+      // that into `{ healthy: false, userCount: 0 }` — an unreachable Pulse's answer today.
+      const abortController = new AbortController()
+      const requestOptions = { timeout: PULSE_TIMEOUT_MS, abortController }
+      const deadline = setTimeout(() => abortController.abort(), PULSE_TIMEOUT_MS)
 
-      await drainResponse(healthResponse)
+      try {
+        // allSettled, not all: with Promise.all a leg that answers *after* its sibling rejected is
+        // abandoned unread, and undici keeps that socket pinned until GC (see fetch-utils).
+        const [realmsResult, healthResult] = await Promise.allSettled([
+          fetch.fetch(`${pulseUrl}/realms`, requestOptions),
+          fetch.fetch(`${pulseUrl}/health`, requestOptions)
+        ])
 
-      if (!realmsResponse.ok) {
-        await drainResponse(realmsResponse)
-        throw new Error(`/realms returned ${realmsResponse.status} for ${pulseUrl}`)
+        if (healthResult.status === 'fulfilled') {
+          await drainResponse(healthResult.value)
+        }
+
+        if (realmsResult.status === 'rejected') {
+          throw realmsResult.reason
+        }
+
+        if (healthResult.status === 'rejected') {
+          await drainResponse(realmsResult.value)
+          throw healthResult.reason
+        }
+
+        const realmsResponse = realmsResult.value
+
+        if (!realmsResponse.ok) {
+          await drainResponse(realmsResponse)
+          throw new Error(`/realms returned ${realmsResponse.status} for ${pulseUrl}`)
+        }
+
+        // Defaulted at every hop: a body without `realms`, or an entry without `peers`, means no
+        // Genesis City peers — never a TypeError that would degrade the realm to unhealthy.
+        const { realms = [] } = ((await realmsResponse.json()) ?? {}) as { realms?: PulseRealm[] }
+        const userCount = realms.find((realm) => realm?.name === realmName)?.peers ?? 0
+
+        return { healthy: healthResult.value.status === 200, userCount, adapter, realmName }
+      } finally {
+        clearTimeout(deadline)
       }
-
-      // Defaulted at every hop: a body without `realms`, or an entry without `peers`, means no
-      // Genesis City peers — never a TypeError that would degrade the realm to unhealthy.
-      const { realms = [] } = ((await realmsResponse.json()) ?? {}) as { realms?: PulseRealm[] }
-      const userCount = realms.find((realm) => realm?.name === realmName)?.peers ?? 0
-
-      return { healthy: healthResponse.status === 200, userCount, adapter, realmName }
     }
   } else {
     const statsUrl = await config.requireString('ARCHIPELAGO_STATS_URL')
