@@ -12,12 +12,17 @@ import { createCatalystsProvider } from './adapters/realm-provider'
 import { createFetchComponent } from '@dcl/fetch-component'
 import { createMainRealmProviderComponent } from './adapters/main-realm-provider'
 import { createContentComponent } from './adapters/content'
+import { requirePresenceSourceConfig } from './logic/presence-source'
 
 // Initialize all the components of the app
 export async function initComponents(): Promise<AppComponents> {
   const config = await createDotEnvConfigComponent({ path: ['.env.default', '.env'] })
   const metrics = await createMetricsComponent(metricDeclarations, { config })
   const logs = await createLogComponent({ metrics })
+
+  // Fail here, not on the first request, when PRESENCE_SOURCE=pulse is missing its URLs.
+  await requirePresenceSourceConfig(config, logs)
+
   const server = await createServerComponent<GlobalContext>(
     { config, logs },
     {
