@@ -10,6 +10,12 @@ describe('realms handler', () => {
     return realmsHandler({ components: { catalystsProvider, config, mainRealmProvider }, url })
   }
 
+  function makeMainRealm(healthy: boolean, userCount: number): MainRealmProviderComponent {
+    return {
+      getStatus: jest.fn().mockResolvedValue({ healthy, userCount, adapter: 'adapter', realmName: 'main' })
+    }
+  }
+
   function makeCatalysts() {
     return {
       getHealhtyCatalysts: jest.fn().mockResolvedValue([
@@ -43,19 +49,10 @@ describe('realms handler', () => {
 
   describe('when requesting available realms', () => {
     describe('and the main realm is available', () => {
-      it('should return every healthy catalyst + main realm', async () => {
-        const mainRealmProvider = {
-          getStatus: jest.fn().mockResolvedValue({
-            healthy: true,
-            userCount: 100,
-            adapter: 'adapter',
-            realmName: 'main'
-          })
-        }
+      it('should return every catalyst that reports comms + main realm', async () => {
+        const { body } = await executeHandler(makeCatalysts(), makeMainRealm(true, 100))
 
-        const { body } = await executeHandler(makeCatalysts(), mainRealmProvider)
-        expect(body).toHaveLength(3)
-
+        expect(body).toHaveLength(2)
         expect(body.find((c) => c.serverName === 'main')).toEqual({
           serverName: 'main',
           url: 'https://localhost/main',
@@ -66,54 +63,27 @@ describe('realms handler', () => {
 
     describe('and the main realm is not available', () => {
       it('should return only healthy catalysts', async () => {
-        const mainRealmProvider = {
-          getStatus: jest.fn().mockResolvedValue({
-            healthy: false,
-            userCount: 100,
-            adapter: 'adapter',
-            realmName: 'main'
-          })
-        }
+        const { body } = await executeHandler(makeCatalysts(), makeMainRealm(false, 100))
 
-        const { body } = await executeHandler(makeCatalysts(), mainRealmProvider)
-        expect(body).toHaveLength(2)
+        expect(body).toHaveLength(1)
         expect(body.find((c) => c.serverName === 'main')).toBeFalsy()
       })
     })
 
     describe('and a catalyst has no comms section in its /about', () => {
-      it('should still list it, since catalysts no longer report comms', async () => {
-        const mainRealmProvider = {
-          getStatus: jest.fn().mockResolvedValue({
-            healthy: false,
-            userCount: 0,
-            adapter: 'adapter',
-            realmName: 'main'
-          })
-        }
+      it('should leave it out, exactly as before this work package', async () => {
+        // WP6 drops the *user count* read from about.comms, not the guard: which realms /realms
+        // lists must not change on a deploy that only ships this code.
+        const { body } = await executeHandler(makeCatalysts(), makeMainRealm(false, 0))
 
-        const { body } = await executeHandler(makeCatalysts(), mainRealmProvider)
-
-        expect(body.find((c) => c.serverName === 'hela')).toEqual({
-          serverName: 'hela',
-          url: 'http://peer-ec2.decentraland.org',
-          usersCount: 0
-        })
+        expect(body.find((c) => c.serverName === 'hela')).toBeUndefined()
+        expect(body.map((c) => c.serverName)).toEqual(['hera'])
       })
     })
 
     describe('and a catalyst still reports a comms user count', () => {
       it('should report 0 users for it, since the catalyst count is meaningless', async () => {
-        const mainRealmProvider = {
-          getStatus: jest.fn().mockResolvedValue({
-            healthy: false,
-            userCount: 0,
-            adapter: 'adapter',
-            realmName: 'main'
-          })
-        }
-
-        const { body } = await executeHandler(makeCatalysts(), mainRealmProvider)
+        const { body } = await executeHandler(makeCatalysts(), makeMainRealm(false, 0))
 
         expect(body.find((c) => c.serverName === 'hera')).toEqual({
           serverName: 'hera',
