@@ -13,6 +13,12 @@ export type PresenceSource = 'archipelago' | 'pulse'
 
 export const DEFAULT_PRESENCE_SOURCE: PresenceSource = 'archipelago'
 
+// Whether this process has already complained about an unrecognised value. The flag is read on
+// every /hot-scenes request, so warning per read would emit one line per request for the lifetime
+// of a typo'd deploy. `requirePresenceSourceConfig` resolves the flag in `initComponents` before
+// any component exists, so in a real process the one warning lands at startup.
+let hasWarnedAboutUnknownValue = false
+
 export async function getPresenceSource(config: IConfigComponent, logs?: ILoggerComponent): Promise<PresenceSource> {
   const raw = (await config.getString('PRESENCE_SOURCE')) ?? ''
   const configured = raw.trim().toLowerCase()
@@ -22,11 +28,15 @@ export async function getPresenceSource(config: IConfigComponent, logs?: ILogger
   }
 
   // A value we do not recognise falls back to today's behaviour rather than failing to boot — but
-  // silently keeping the old path on a typo is exactly the surprise worth a warning.
-  if (configured !== '' && configured !== DEFAULT_PRESENCE_SOURCE) {
-    logs
-      ?.getLogger('presence-source')
-      .warn(`Unknown PRESENCE_SOURCE "${raw}", falling back to ${DEFAULT_PRESENCE_SOURCE}`)
+  // silently keeping the old path on a typo is exactly the surprise worth a warning. Once, though:
+  // see hasWarnedAboutUnknownValue. The flag is only spent when a logger actually took the line.
+  if (configured !== '' && configured !== DEFAULT_PRESENCE_SOURCE && !hasWarnedAboutUnknownValue) {
+    const logger = logs?.getLogger('presence-source')
+
+    if (logger) {
+      hasWarnedAboutUnknownValue = true
+      logger.warn(`Unknown PRESENCE_SOURCE "${raw}", falling back to ${DEFAULT_PRESENCE_SOURCE}`)
+    }
   }
 
   return DEFAULT_PRESENCE_SOURCE
