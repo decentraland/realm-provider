@@ -385,6 +385,14 @@ describe('hot-scenes handler', () => {
         expect((response.body as any[])[0].id).toEqual(packHotScenes.body[0].id)
       })
 
+      it('serves the stale array when the gatekeeper answers a 200 that is not an array', async () => {
+        const response = await cacheThenFail(() => ({ json: () => Promise.resolve({ scenes: [] }) }), 11_000)
+
+        expect(response.status).toBeUndefined()
+        expect(response.headers).toEqual({ 'X-Cache': 'stale' })
+        expect((response.body as any[])[0].id).toEqual(packHotScenes.body[0].id)
+      })
+
       it('stops serving the stale array once it is older than a minute, passing the upstream 503 on', async () => {
         const response = await cacheThenFail(warming, 61_000)
 
@@ -404,6 +412,38 @@ describe('hot-scenes handler', () => {
         expect(error.constructor.name).toBe('ServiceUnavailableError')
         expect(error.message).toMatch(/Could not reach/)
       })
+    })
+
+    it('treats a 2xx body that is not an array as an upstream failure', async () => {
+      const handler = loadHandler()
+      // comms-gatekeeper wraps its answer (`200 {"scenes":[…]}`), or an intermediary answers
+      // `200 {}` on that path. /hot-scenes answers an array, so a JSON object must never be
+      // passed through — a client doing body.map(...) would throw and `realms` would be absent.
+      const fetch = makeFetch(() => ({ json: () => Promise.resolve({ scenes: [] }) }))
+
+      const response = await executeHandler(handler, makeMainRealm(true), fetch, makeContent([]), pulseConfig())
+
+      expect(response.status).toBe(502)
+      expect(response.body).toEqual({ error: expect.stringContaining('array') })
+      expect(logger.warn).toHaveBeenCalled()
+    })
+
+    it('does not cache a 2xx body that is not an array', async () => {
+      const handler = loadHandler()
+      let answerAnObject = true
+      const fetch = makeFetch(() => ({
+        json: () => Promise.resolve(answerAnObject ? { scenes: [] } : gatekeeperArray())
+      }))
+      const config = pulseConfig()
+
+      await executeHandler(handler, makeMainRealm(true), fetch, makeContent([]), config)
+      answerAnObject = false
+      const second = await executeHandler(handler, makeMainRealm(true), fetch, makeContent([]), config)
+
+      // A cached object would be served for the next 10 s as if it were fresh.
+      expect(fetch.fetch).toHaveBeenCalledTimes(2)
+      expect(second.status).toBeUndefined()
+      expect((second.body as any[])[0].id).toEqual(packHotScenes.body[0].id)
     })
 
     it('answers the upstream 503 warming body when there is nothing cached', async () => {

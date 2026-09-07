@@ -204,6 +204,16 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+        '502':
+          description: |
+            Only when `PRESENCE_SOURCE=pulse`: comms-gatekeeper answered a 2xx whose body is not an
+            array, so it cannot be served as this endpoint's response. The body is neither cached
+            nor passed through; a cached array younger than 60 seconds is served in its place if
+            there is one (with `X-Cache: stale`), otherwise this status.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
         '503':
           description: |
             Only when `PRESENCE_SOURCE=pulse`: comms-gatekeeper is still priming its presence map, or

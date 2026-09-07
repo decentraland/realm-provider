@@ -74,13 +74,9 @@ function getCoords(coordsAsString: string): [number, number] {
  * comms-gatekeeper computes /hot-scenes from its presence map and answers the fields it knows
  * about. realm-provider's own contract also carries a `realms` distribution, which clients read,
  * so the single realm the gatekeeper speaks for is added to every entry. Every gatekeeper field
- * passes through untouched.
+ * passes through untouched. The caller has already checked that the body is an array.
  */
-function withMainRealm(body: unknown, serverName: string): IHttpServerComponent.JsonBody {
-  if (!Array.isArray(body)) {
-    return body as IHttpServerComponent.JsonBody
-  }
-
+function withMainRealm(body: any[], serverName: string): IHttpServerComponent.JsonBody {
   return body.map((scene) =>
     scene && typeof scene === 'object' && !Array.isArray(scene)
       ? { ...scene, realms: [{ serverName, usersCount: scene.usersTotalCount ?? 0 }] }
@@ -145,7 +141,28 @@ async function fetchFromGatekeeper(
       }
     }
 
-    const body = withMainRealm(await response.json(), mainRealmProvider.realmName)
+    const upstreamBody = await response.json()
+
+    // /hot-scenes answers an array (`docs/openapi.yaml`, and every client reads it as one). A 2xx
+    // that is not one is an upstream contract break, not a list to add `realms` to, cache for 10 s
+    // and then serve as stale for another 50: treat it exactly like a failed upstream call.
+    if (!Array.isArray(upstreamBody)) {
+      logger.warn('comms-gatekeeper answered /hot-scenes with a body that is not an array', {
+        status: response.status
+      })
+
+      const stale = serveStaleCache(logger)
+      if (stale) {
+        return stale
+      }
+
+      return {
+        status: 502,
+        body: { error: `${gatekeeperUrl}/hot-scenes answered ${response.status} with a body that is not an array` }
+      }
+    }
+
+    const body = withMainRealm(upstreamBody, mainRealmProvider.realmName)
     gatekeeperCache = { body, cachedAt: Date.now() }
     return { body }
   } catch (err: any) {
