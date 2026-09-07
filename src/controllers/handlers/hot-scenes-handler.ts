@@ -1,4 +1,5 @@
 import { IHttpServerComponent } from '@dcl/core-commons'
+import type { ILoggerComponent } from '@well-known-components/interfaces'
 import { HandlerContextWithPath, ServiceUnavailableError } from '../../types'
 import { drainResponse } from '../../logic/fetch-utils'
 import { getPresenceSource } from '../../logic/presence-source'
@@ -6,12 +7,18 @@ import { getPresenceSource } from '../../logic/presence-source'
 // The maximum amount of hot scenes returned
 const HOT_SCENES_LIMIT = 100
 
-// How long we wait for comms-gatekeeper before falling back to whatever we have cached.
+// How long we wait for comms-gatekeeper before falling back to whatever we have cached. The
+// deadline covers the whole exchange, the body read included.
 const GATEKEEPER_TIMEOUT_MS = 5000
 
 // How long a successful comms-gatekeeper answer is reused. /hot-scenes is a high-traffic,
 // low-precision endpoint, so a short cache keeps the gatekeeper from being hammered.
 const GATEKEEPER_CACHE_TTL_MS = 10000
+
+// How old a cached answer may be and still be served while the gatekeeper is failing. Past this
+// the list describes where users *were*, not where they are, so the upstream failure is surfaced
+// instead of a plausible-looking lie.
+const GATEKEEPER_STALE_MAX_AGE_MS = 60000
 
 type Realm = {
   serverName: string
@@ -42,11 +49,12 @@ export type ParcelsResponse = {
 
 export type HotScenesResponse = {
   status?: number
+  headers?: Record<string, string>
   body: IHttpServerComponent.JsonBody
 }
 
 type HotScenesComponents = Pick<
-  HandlerContextWithPath<'mainRealmProvider' | 'config' | 'content' | 'fetch', '/hot-scenes'>,
+  HandlerContextWithPath<'mainRealmProvider' | 'config' | 'content' | 'fetch' | 'logs', '/hot-scenes'>,
   'components'
 >['components']
 
@@ -54,42 +62,125 @@ type HotScenesComponents = Pick<
 // blank out /hot-scenes for every client.
 let gatekeeperCache: { body: IHttpServerComponent.JsonBody; cachedAt: number } | undefined
 
+// The upstream call a cache miss is currently making, shared by every request that arrives while
+// it is in flight.
+let inFlightGatekeeperFetch: Promise<HotScenesResponse> | undefined
+
 function getCoords(coordsAsString: string): [number, number] {
   return coordsAsString.split(',').map((part) => parseInt(part, 10)) as any
 }
 
 /**
- * `pulse` mode: comms-gatekeeper owns the presence map, so it computes /hot-scenes. We proxy its
- * bare array through untouched.
+ * comms-gatekeeper computes /hot-scenes from its presence map and answers the fields it knows
+ * about. realm-provider's own contract also carries a `realms` distribution, which clients read,
+ * so the single realm the gatekeeper speaks for is added to every entry. Every gatekeeper field
+ * passes through untouched.
  */
-async function proxyHotScenes({ config, fetch }: HotScenesComponents): Promise<HotScenesResponse> {
-  const gatekeeperUrl = await config.requireString('COMMS_GATEKEEPER_URL')
+function withMainRealm(body: unknown, serverName: string): IHttpServerComponent.JsonBody {
+  if (!Array.isArray(body)) {
+    return body as IHttpServerComponent.JsonBody
+  }
+
+  return body.map((scene) =>
+    scene && typeof scene === 'object' && !Array.isArray(scene)
+      ? { ...scene, realms: [{ serverName, usersCount: scene.usersTotalCount ?? 0 }] }
+      : scene
+  )
+}
+
+/**
+ * The cached array, if it is still recent enough to stand in for a live answer. Anything older is
+ * dropped, so the next failure reports the failure instead of serving that list again.
+ */
+function serveStaleCache(logger: ILoggerComponent.ILogger): HotScenesResponse | undefined {
+  if (!gatekeeperCache) {
+    return undefined
+  }
+
+  const ageMs = Date.now() - gatekeeperCache.cachedAt
+  if (ageMs > GATEKEEPER_STALE_MAX_AGE_MS) {
+    gatekeeperCache = undefined
+    return undefined
+  }
+
+  logger.warn('Serving a stale /hot-scenes list: comms-gatekeeper did not answer', { ageMs })
+  return { headers: { 'X-Cache': 'stale' }, body: gatekeeperCache.body }
+}
+
+async function fetchFromGatekeeper(
+  gatekeeperUrl: string,
+  { fetch, mainRealmProvider, logs }: HotScenesComponents
+): Promise<HotScenesResponse> {
+  const logger = logs.getLogger('hot-scenes-proxy')
+
+  // One deadline for the whole exchange. The fetch component's own `timeout` stops covering the
+  // request as soon as the headers are in, so we hold the AbortController it uses and abort it
+  // ourselves: that also aborts the body stream `response.json()` is reading.
+  const abortController = new AbortController()
+  const deadline = setTimeout(() => abortController.abort(), GATEKEEPER_TIMEOUT_MS)
+
+  try {
+    const response = await fetch.fetch(`${gatekeeperUrl}/hot-scenes`, {
+      timeout: GATEKEEPER_TIMEOUT_MS,
+      abortController
+    })
+
+    if (!response.ok) {
+      // The gatekeeper answers 503 {"ok":false,"error":"warming"} until its presence map is
+      // primed. An error body that is not JSON (a load balancer's HTML page, say) must not cost
+      // the client the upstream status.
+      const body = await response.json().catch(async () => {
+        await drainResponse(response)
+        return undefined
+      })
+
+      const stale = serveStaleCache(logger)
+      if (stale) {
+        return stale
+      }
+
+      return {
+        status: response.status,
+        body: body ?? { error: `${gatekeeperUrl}/hot-scenes answered ${response.status}` }
+      }
+    }
+
+    const body = withMainRealm(await response.json(), mainRealmProvider.realmName)
+    gatekeeperCache = { body, cachedAt: Date.now() }
+    return { body }
+  } catch (err: any) {
+    const stale = serveStaleCache(logger)
+    if (stale) {
+      return stale
+    }
+
+    throw new ServiceUnavailableError(`Could not reach ${gatekeeperUrl}/hot-scenes: ${err.message}`)
+  } finally {
+    clearTimeout(deadline)
+  }
+}
+
+/**
+ * `pulse` mode: comms-gatekeeper owns the presence map, so it computes /hot-scenes. We pass its
+ * array through, adding only the `realms` distribution our own contract requires.
+ */
+async function proxyHotScenes(components: HotScenesComponents): Promise<HotScenesResponse> {
+  // Also read at startup (see requirePresenceSourceConfig), so this cannot fail per request.
+  const gatekeeperUrl = await components.config.requireString('COMMS_GATEKEEPER_URL')
 
   if (gatekeeperCache && Date.now() - gatekeeperCache.cachedAt < GATEKEEPER_CACHE_TTL_MS) {
     return { body: gatekeeperCache.body }
   }
 
-  try {
-    const response = await fetch.fetch(`${gatekeeperUrl}/hot-scenes`, { timeout: GATEKEEPER_TIMEOUT_MS })
-
-    if (!response.ok) {
-      // The gatekeeper answers 503 {"ok":false,"error":"warming"} until its presence map is primed.
-      const body = await response.json()
-      if (gatekeeperCache) {
-        return { body: gatekeeperCache.body }
-      }
-      return { status: response.status, body }
-    }
-
-    const body = await response.json()
-    gatekeeperCache = { body, cachedAt: Date.now() }
-    return { body }
-  } catch (err: any) {
-    if (gatekeeperCache) {
-      return { body: gatekeeperCache.body }
-    }
-    throw new ServiceUnavailableError(`Could not reach ${gatekeeperUrl}/hot-scenes: ${err.message}`)
+  // Every request that arrives during a miss waits on the same upstream call, so a cache expiry
+  // under load costs comms-gatekeeper one request rather than one per client.
+  if (!inFlightGatekeeperFetch) {
+    inFlightGatekeeperFetch = fetchFromGatekeeper(gatekeeperUrl, components).finally(() => {
+      inFlightGatekeeperFetch = undefined
+    })
   }
+
+  return inFlightGatekeeperFetch
 }
 
 /**
@@ -181,12 +272,12 @@ async function aggregateHotScenes({
 
 export async function hotScenesHandler(
   context: Pick<
-    HandlerContextWithPath<'mainRealmProvider' | 'config' | 'content' | 'fetch', '/hot-scenes'>,
+    HandlerContextWithPath<'mainRealmProvider' | 'config' | 'content' | 'fetch' | 'logs', '/hot-scenes'>,
     'components'
   >
 ): Promise<HotScenesResponse> {
   const { components } = context
-  const presenceSource = await getPresenceSource(components.config)
+  const presenceSource = await getPresenceSource(components.config, components.logs)
 
   return presenceSource === 'pulse' ? proxyHotScenes(components) : aggregateHotScenes(components)
 }

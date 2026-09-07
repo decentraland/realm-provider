@@ -2,6 +2,12 @@ import { AppComponents } from '../types'
 import { drainResponse } from '../logic/fetch-utils'
 import { getPresenceSource } from '../logic/presence-source'
 
+/** One entry of Pulse `GET /realms`: realm names are lowercase, `main` is Genesis City. */
+type PulseRealm = {
+  name?: string
+  peers?: number
+}
+
 export type CoreStatus = {
   healthy: boolean
   userCount: number
@@ -19,41 +25,50 @@ export type MainRealmStatus = CoreStatus &
   }
 
 export type MainRealmProviderComponent = {
+  /** The MAIN realm's server name. Constant, so callers can label a response without a round trip. */
+  realmName: string
   getStatus(): Promise<MainRealmStatus>
 }
 
 export async function createMainRealmProviderComponent({
   config,
-  fetch
+  fetch,
+  logs
 }: Pick<AppComponents, 'config' | 'fetch' | 'logs'>): Promise<MainRealmProviderComponent> {
   // The comms adapter still points clients at the ws-connector, whatever the presence source is.
   const wsConnectorUrl = await config.requireString('ARCHIPELAGO_WS_CONNECTOR_URL')
   const adapter = `archipelago:archipelago:${wsConnectorUrl.replace(/^http/, 'ws')}/ws`
   const realmName = 'main'
 
-  const presenceSource = await getPresenceSource(config)
+  const presenceSource = await getPresenceSource(config, logs)
 
   let fetchCoreStatus: () => Promise<MainRealmStatus>
 
   if (presenceSource === 'pulse') {
     const pulseUrl = await config.requireString('PULSE_URL')
 
-    // Pulse splits what /core-status used to answer in one shot: /about carries the user count,
-    // /health carries liveness (200 == healthy).
+    // Pulse splits what /core-status used to answer in one shot: /realms carries the per-realm peer
+    // counts, /health carries liveness (200 == healthy). We deliberately do NOT read /about: its
+    // `userCount` totals every realm (worlds and local scenes included), while this realm's
+    // `usersCount` has always meant Genesis City only.
     fetchCoreStatus = async function fetchPulseStatus(): Promise<MainRealmStatus> {
-      const [aboutResponse, healthResponse] = await Promise.all([
-        fetch.fetch(`${pulseUrl}/about`),
+      const [realmsResponse, healthResponse] = await Promise.all([
+        fetch.fetch(`${pulseUrl}/realms`),
         fetch.fetch(`${pulseUrl}/health`)
       ])
 
       await drainResponse(healthResponse)
 
-      if (!aboutResponse.ok) {
-        await drainResponse(aboutResponse)
-        throw new Error(`/about returned ${aboutResponse.status} for ${pulseUrl}`)
+      if (!realmsResponse.ok) {
+        await drainResponse(realmsResponse)
+        throw new Error(`/realms returned ${realmsResponse.status} for ${pulseUrl}`)
       }
 
-      const { userCount } = await aboutResponse.json()
+      // Defaulted at every hop: a body without `realms`, or an entry without `peers`, means no
+      // Genesis City peers — never a TypeError that would degrade the realm to unhealthy.
+      const { realms = [] } = ((await realmsResponse.json()) ?? {}) as { realms?: PulseRealm[] }
+      const userCount = realms.find((realm) => realm?.name === realmName)?.peers ?? 0
+
       return { healthy: healthResponse.status === 200, userCount, adapter, realmName }
     }
   } else {
@@ -85,6 +100,7 @@ export async function createMainRealmProviderComponent({
   }
 
   return {
+    realmName,
     getStatus
   }
 }

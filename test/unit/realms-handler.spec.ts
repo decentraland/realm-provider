@@ -12,6 +12,7 @@ describe('realms handler', () => {
 
   function makeMainRealm(healthy: boolean, userCount: number): MainRealmProviderComponent {
     return {
+      realmName: 'main',
       getStatus: jest.fn().mockResolvedValue({ healthy, userCount, adapter: 'adapter', realmName: 'main' })
     }
   }

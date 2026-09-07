@@ -31,6 +31,17 @@ function makeConfig(overrides: Record<string, string> = {}) {
 
 type MockResponse = { ok?: boolean; status?: number; json?: () => Promise<any> }
 
+function makeResponse(result: MockResponse) {
+  const status = result.status ?? (result.ok === false ? 404 : 200)
+  return {
+    ok: result.ok ?? status < 300,
+    status,
+    bodyUsed: false,
+    body: { cancel: () => Promise.resolve() },
+    json: result.json ?? (() => Promise.resolve({}))
+  }
+}
+
 function makeFetch(handler: (url: string, init?: any) => MockResponse | Promise<never>) {
   return {
     fetch: jest.fn((url: string, init?: any) => {
@@ -38,14 +49,7 @@ function makeFetch(handler: (url: string, init?: any) => MockResponse | Promise<
       if (result instanceof Promise) {
         return result
       }
-      const status = result.status ?? (result.ok === false ? 404 : 200)
-      return Promise.resolve({
-        ok: result.ok ?? status < 300,
-        status,
-        bodyUsed: false,
-        body: { cancel: () => Promise.resolve() },
-        json: result.json ?? (() => Promise.resolve({}))
-      })
+      return Promise.resolve(makeResponse(result))
     })
   }
 }
@@ -57,8 +61,12 @@ function makeContent(scenes: any[] = []) {
   }
 }
 
+const logger = { info: jest.fn(), warn: jest.fn(), error: jest.fn(), debug: jest.fn() }
+const logs = { getLogger: () => logger } as any
+
 function makeMainRealm(healthy: boolean, realmName = 'main'): MainRealmProviderComponent {
   return {
+    realmName,
     getStatus: jest.fn().mockResolvedValue({ healthy, realmName, userCount: 0, adapter: 'adapter' })
   }
 }
@@ -71,12 +79,21 @@ function executeHandler(
   config: any
 ) {
   return handler({
-    components: { mainRealmProvider, fetch, content, config },
+    components: { mainRealmProvider, fetch, content, config, logs },
     url: new URL('http://localhost/hot-scenes')
   } as any)
 }
 
+/** Flush every pending microtask, so concurrent handler calls reach their next await. */
+function flushMicrotasks(): Promise<void> {
+  return new Promise((resolve) => setImmediate(resolve))
+}
+
 describe('hot-scenes handler', () => {
+  beforeEach(() => {
+    logger.warn.mockClear()
+  })
+
   describe('when PRESENCE_SOURCE is not set', () => {
     it('aggregates parcels from archipelago-stats, as it does today', async () => {
       const handler = loadHandler()
@@ -153,20 +170,45 @@ describe('hot-scenes handler', () => {
       return makeConfig({ PRESENCE_SOURCE: 'pulse' })
     }
 
-    it('passes the comms-gatekeeper bare array through unchanged', async () => {
-      const handler = loadHandler()
-      const mainRealm = makeMainRealm(true)
-      const fetch = makeFetch(() => ({ json: () => Promise.resolve(JSON.parse(JSON.stringify(packHotScenes.body))) }))
-      const content = makeContent([])
+    function gatekeeperArray() {
+      return JSON.parse(JSON.stringify(packHotScenes.body))
+    }
 
-      const response = await executeHandler(handler, mainRealm, fetch, content, pulseConfig())
+    it('passes every comms-gatekeeper field through and adds the main realm to each entry', async () => {
+      const handler = loadHandler()
+      const fetch = makeFetch(() => ({ json: () => Promise.resolve(gatekeeperArray()) }))
+
+      const response = await executeHandler(handler, makeMainRealm(true), fetch, makeContent([]), pulseConfig())
 
       expect(fetch.fetch).toHaveBeenCalledWith(`${GATEKEEPER_URL}/hot-scenes`, expect.anything())
       expect(response.status).toBeUndefined()
-      expect(response.body).toEqual(packHotScenes.body)
-      // byte-for-byte: no key added, removed or re-ordered on the way through
-      expect(JSON.stringify(response.body)).toEqual(JSON.stringify(packHotScenes.body))
-      expect(content.fetchScenes).not.toHaveBeenCalled()
+
+      const scenes = response.body as any[]
+      const expected = packHotScenes.body as any[]
+      expect(scenes).toHaveLength(expected.length)
+
+      scenes.forEach((scene, index) => {
+        // every gatekeeper field byte-identical: nothing renamed, re-ordered, dropped or rewritten
+        const { realms, ...gatekeeperFields } = scene
+        expect(JSON.stringify(gatekeeperFields)).toEqual(JSON.stringify(expected[index]))
+        // ...and realm-provider's own `realms` distribution added on top (A1)
+        expect(realms).toEqual([{ serverName: 'main', usersCount: expected[index].usersTotalCount }])
+      })
+    })
+
+    it('labels the added realm with the main realm name the provider reports', async () => {
+      const handler = loadHandler()
+      const fetch = makeFetch(() => ({ json: () => Promise.resolve(gatekeeperArray()) }))
+
+      const response = await executeHandler(
+        handler,
+        makeMainRealm(true, 'main-2'),
+        fetch,
+        makeContent([]),
+        pulseConfig()
+      )
+
+      expect((response.body as any[])[0].realms).toEqual([{ serverName: 'main-2', usersCount: 9 }])
     })
 
     it('gives the gatekeeper a 5 second timeout', async () => {
@@ -175,7 +217,44 @@ describe('hot-scenes handler', () => {
 
       await executeHandler(handler, makeMainRealm(true), fetch, makeContent([]), pulseConfig())
 
-      expect(fetch.fetch).toHaveBeenCalledWith(`${GATEKEEPER_URL}/hot-scenes`, { timeout: 5000 })
+      expect(fetch.fetch).toHaveBeenCalledWith(`${GATEKEEPER_URL}/hot-scenes`, {
+        timeout: 5000,
+        abortController: expect.any(AbortController)
+      })
+    })
+
+    it('aborts a response whose body stalls past the same 5 seconds', async () => {
+      jest.useFakeTimers()
+      try {
+        const handler = loadHandler()
+        // eslint-disable-next-line @typescript-eslint/no-var-requires
+        const { ServiceUnavailableError } = require('../../src/types')
+        // Headers arrive, the body never does. Only aborting the controller the request was made
+        // with ends this promise, so a timeout that stops at the headers leaves it hanging.
+        const fetch = makeFetch((_url, init) => ({
+          json: () =>
+            new Promise((_resolve, reject) => {
+              init?.abortController?.signal.addEventListener('abort', () => reject(new Error('aborted')))
+            })
+        }))
+
+        const pending = executeHandler(handler, makeMainRealm(true), fetch, makeContent([]), pulseConfig())
+        const assertion = expect(pending).rejects.toBeInstanceOf(ServiceUnavailableError)
+        let settled = false
+        pending.then(
+          () => (settled = true),
+          () => (settled = true)
+        )
+
+        await jest.advanceTimersByTimeAsync(4999)
+        expect(settled).toBe(false)
+
+        await jest.advanceTimersByTimeAsync(1)
+        await assertion
+        expect(settled).toBe(true)
+      } finally {
+        jest.useRealTimers()
+      }
     })
 
     it('never fetches /stats/parcels nor archipelago-stats', async () => {
@@ -189,11 +268,21 @@ describe('hot-scenes handler', () => {
       expect(urls.some((url: string) => url.includes(STATS_URL))).toBe(false)
     })
 
+    it('does not call the content server', async () => {
+      const handler = loadHandler()
+      const fetch = makeFetch(() => ({ json: () => Promise.resolve(gatekeeperArray()) }))
+      const content = makeContent([])
+
+      await executeHandler(handler, makeMainRealm(true), fetch, content, pulseConfig())
+
+      expect(content.fetchScenes).not.toHaveBeenCalled()
+    })
+
     it('serves the cached array for 10 seconds instead of hitting the gatekeeper again', async () => {
       jest.useFakeTimers().setSystemTime(new Date('2026-09-04T09:52:47.804Z'))
       try {
         const handler = loadHandler()
-        const fetch = makeFetch(() => ({ json: () => Promise.resolve(packHotScenes.body) }))
+        const fetch = makeFetch(() => ({ json: () => Promise.resolve(gatekeeperArray()) }))
         const config = pulseConfig()
 
         const first = await executeHandler(handler, makeMainRealm(true), fetch, makeContent([]), config)
@@ -202,6 +291,7 @@ describe('hot-scenes handler', () => {
 
         expect(fetch.fetch).toHaveBeenCalledTimes(1)
         expect(second.body).toEqual(first.body)
+        expect(second.headers).toBeUndefined()
       } finally {
         jest.useRealTimers()
       }
@@ -224,50 +314,96 @@ describe('hot-scenes handler', () => {
       }
     })
 
-    it('serves the stale cached array when the gatekeeper answers 503 warming', async () => {
-      jest.useFakeTimers().setSystemTime(new Date('2026-09-04T09:52:47.804Z'))
-      try {
-        const handler = loadHandler()
-        let warming = false
-        const fetch = makeFetch(() =>
-          warming
-            ? { ok: false, status: 503, json: () => Promise.resolve({ ok: false, error: 'warming' }) }
-            : { json: () => Promise.resolve(packHotScenes.body) }
-        )
-        const config = pulseConfig()
-
-        await executeHandler(handler, makeMainRealm(true), fetch, makeContent([]), config)
-        warming = true
-        jest.setSystemTime(Date.now() + 11_000)
-        const response = await executeHandler(handler, makeMainRealm(true), fetch, makeContent([]), config)
-
-        expect(response.status).toBeUndefined()
-        expect(response.body).toEqual(packHotScenes.body)
-      } finally {
-        jest.useRealTimers()
+    it('makes one upstream call for requests that arrive together on a cache miss', async () => {
+      const handler = loadHandler()
+      let releaseFetch!: () => void
+      const gate = new Promise<void>((resolve) => {
+        releaseFetch = resolve
+      })
+      const fetch = {
+        fetch: jest.fn(async () => {
+          await gate
+          return makeResponse({ json: () => Promise.resolve(gatekeeperArray()) })
+        })
       }
+      const config = pulseConfig()
+
+      const first = executeHandler(handler, makeMainRealm(true), fetch, makeContent([]), config)
+      const second = executeHandler(handler, makeMainRealm(true), fetch, makeContent([]), config)
+
+      // Both requests are now as far as they can get: the gatekeeper fetch is still in flight.
+      await flushMicrotasks()
+      releaseFetch()
+      const [firstResponse, secondResponse] = await Promise.all([first, second])
+
+      expect(fetch.fetch).toHaveBeenCalledTimes(1)
+      expect(secondResponse.body).toEqual(firstResponse.body)
     })
 
-    it('serves the stale cached array when the gatekeeper times out', async () => {
-      jest.useFakeTimers().setSystemTime(new Date('2026-09-04T09:52:47.804Z'))
-      try {
+    describe('and the gatekeeper fails with something cached', () => {
+      const warming = () => ({ ok: false, status: 503, json: () => Promise.resolve({ ok: false, error: 'warming' }) })
+      const timeout = () => Promise.reject(new Error('Request aborted (timed out)'))
+
+      // Prime the cache, then age it by `elapsedMs` and let the gatekeeper fail.
+      async function cacheThenFail(fail: () => MockResponse | Promise<never>, elapsedMs: number) {
+        let failing = false
         const handler = loadHandler()
-        let timeout = false
-        const fetch = makeFetch(() =>
-          timeout ? Promise.reject(new Error('timeout')) : { json: () => Promise.resolve(packHotScenes.body) }
-        )
+        const fetch = makeFetch(() => (failing ? fail() : { json: () => Promise.resolve(gatekeeperArray()) }))
         const config = pulseConfig()
 
         await executeHandler(handler, makeMainRealm(true), fetch, makeContent([]), config)
-        timeout = true
-        jest.setSystemTime(Date.now() + 11_000)
-        const response = await executeHandler(handler, makeMainRealm(true), fetch, makeContent([]), config)
+        failing = true
+        jest.setSystemTime(Date.now() + elapsedMs)
+
+        return executeHandler(handler, makeMainRealm(true), fetch, makeContent([]), config)
+      }
+
+      beforeEach(() => {
+        jest.useFakeTimers().setSystemTime(new Date('2026-09-04T09:52:47.804Z'))
+      })
+
+      afterEach(() => {
+        jest.useRealTimers()
+      })
+
+      it('serves the stale array on a 503 warming, flagged as stale', async () => {
+        const response = await cacheThenFail(warming, 11_000)
+        const scenes = response.body as any[]
 
         expect(response.status).toBeUndefined()
-        expect(response.body).toEqual(packHotScenes.body)
-      } finally {
-        jest.useRealTimers()
-      }
+        expect(scenes[0].id).toEqual(packHotScenes.body[0].id)
+        expect(scenes[0].realms).toEqual([{ serverName: 'main', usersCount: 9 }])
+        expect(response.headers).toEqual({ 'X-Cache': 'stale' })
+        expect(logger.warn).toHaveBeenCalled()
+      })
+
+      it('serves the stale array on a timeout, flagged as stale', async () => {
+        const response = await cacheThenFail(timeout, 11_000)
+
+        expect(response.status).toBeUndefined()
+        expect(response.headers).toEqual({ 'X-Cache': 'stale' })
+        expect((response.body as any[])[0].id).toEqual(packHotScenes.body[0].id)
+      })
+
+      it('stops serving the stale array once it is older than a minute, passing the upstream 503 on', async () => {
+        const response = await cacheThenFail(warming, 61_000)
+
+        expect(response.status).toBe(503)
+        expect(response.body).toEqual({ ok: false, error: 'warming' })
+        expect(response.headers).toBeUndefined()
+      })
+
+      it('stops serving the stale array once it is older than a minute, answering 503 on a timeout', async () => {
+        const error = await cacheThenFail(timeout, 61_000).then(
+          (response) => response,
+          (err) => err
+        )
+
+        // Compared by name: loadHandler() resets the module registry, so the class the handler
+        // throws is not the one this file imported. The error middleware maps it to a 503.
+        expect(error.constructor.name).toBe('ServiceUnavailableError')
+        expect(error.message).toMatch(/Could not reach/)
+      })
     })
 
     it('answers the upstream 503 warming body when there is nothing cached', async () => {
@@ -282,6 +418,22 @@ describe('hot-scenes handler', () => {
 
       expect(response.status).toBe(503)
       expect(response.body).toEqual({ ok: false, error: 'warming' })
+    })
+
+    it('passes a non-JSON upstream error status through instead of a blanket 503', async () => {
+      const handler = loadHandler()
+      // An ALB in front of the gatekeeper answers `502 <html>Bad Gateway</html>`: the body cannot
+      // be parsed, but the status is the one the client must see.
+      const fetch = makeFetch(() => ({
+        ok: false,
+        status: 502,
+        json: () => Promise.reject(new SyntaxError('Unexpected token < in JSON at position 0'))
+      }))
+
+      const response = await executeHandler(handler, makeMainRealm(true), fetch, makeContent([]), pulseConfig())
+
+      expect(response.status).toBe(502)
+      expect(response.body).toEqual({ error: expect.stringContaining('502') })
     })
 
     it('answers 503 when the gatekeeper times out and there is nothing cached', async () => {

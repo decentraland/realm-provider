@@ -1,5 +1,6 @@
 import { readFileSync } from 'fs'
 import { join } from 'path'
+import { createConfigComponent } from '@well-known-components/env-config-provider'
 import { createMainRealmProviderComponent } from '../../src/adapters/main-realm-provider'
 
 const STATS_URL = 'https://archipelago-ea-stats.decentraland.org'
@@ -10,7 +11,7 @@ function readFixture(relativePath: string) {
   return JSON.parse(readFileSync(join(__dirname, '../fixtures/iteration-2', relativePath), 'utf-8'))
 }
 
-const packAbout = readFixture('http/about.json')
+const packRealms = readFixture('http/realms.json')
 const packHealth = readFixture('http/health.json')
 
 function makeConfig(overrides: Record<string, string> = {}) {
@@ -52,6 +53,9 @@ const logs = { getLogger: () => ({ info: jest.fn(), warn: jest.fn(), error: jest
 
 const connectorStatus = { json: () => Promise.resolve({ version: '1.0.0', commitHash: 'abc1234' }) }
 
+// The main realm's peer count as Pulse reports it for Genesis City: realms[name == 'main'].peers.
+const packMainPeers = packRealms.body.realms.find((realm: any) => realm.name === 'main').peers
+
 describe('main realm provider', () => {
   describe('when PRESENCE_SOURCE is not set', () => {
     it('reads the user count from archipelago-stats /core-status, as it does today', async () => {
@@ -76,58 +80,83 @@ describe('main realm provider', () => {
       return makeConfig({ PRESENCE_SOURCE: 'pulse' })
     }
 
-    it('maps Pulse /about userCount and a 200 /health to a healthy status', async () => {
-      const fetch = makeFetch({
-        '/about': { status: packAbout.status, json: () => Promise.resolve(packAbout.body) },
-        '/health': { status: packHealth.status },
+    function pulseFetch(realmsResponse: MockResponse, healthStatus = 200) {
+      return makeFetch({
+        '/realms': realmsResponse,
+        '/health': { status: healthStatus },
         '/status': connectorStatus
       })
+    }
+
+    it('reports the Genesis City peer count from Pulse /realms and a 200 /health as healthy', async () => {
+      const fetch = pulseFetch(
+        { status: packRealms.status, json: () => Promise.resolve(packRealms.body) },
+        packHealth.status
+      )
 
       const provider = await createMainRealmProviderComponent({ config: pulseConfig(), fetch, logs })
       const status = await provider.getStatus()
 
-      expect(fetch.fetch).toHaveBeenCalledWith(`${PULSE_URL}/about`)
+      expect(fetch.fetch).toHaveBeenCalledWith(`${PULSE_URL}/realms`)
       expect(fetch.fetch).toHaveBeenCalledWith(`${PULSE_URL}/health`)
       expect(status.healthy).toBe(true)
-      expect(status.userCount).toBe(packAbout.body.userCount)
+      // 4 peers in `main`, not the 5 that /about counts across every realm
+      expect(status.userCount).toBe(packMainPeers)
+      expect(status.userCount).toBe(4)
       expect(status.realmName).toBe('main')
     })
 
-    it('reports unhealthy when Pulse /health is not 200, keeping the /about user count', async () => {
-      const fetch = makeFetch({
-        '/about': { json: () => Promise.resolve(packAbout.body) },
-        '/health': { status: 503 },
-        '/status': connectorStatus
+    it('reports no users when Pulse /realms does not list main', async () => {
+      const fetch = pulseFetch({
+        json: () =>
+          Promise.resolve({
+            realms: [{ name: 'cozyfarm.dcl.eth', peers: 1, clusters: 1 }],
+            lastUpdated: packRealms.body.lastUpdated
+          })
       })
 
       const provider = await createMainRealmProviderComponent({ config: pulseConfig(), fetch, logs })
       const status = await provider.getStatus()
 
-      expect(status.healthy).toBe(false)
-      expect(status.userCount).toBe(packAbout.body.userCount)
+      expect(status.healthy).toBe(true)
+      expect(status.userCount).toBe(0)
     })
 
-    it('never reads /core-status', async () => {
-      const fetch = makeFetch({
-        '/about': { json: () => Promise.resolve(packAbout.body) },
-        '/health': { status: 200 },
-        '/status': connectorStatus
-      })
+    it('reports no users when Pulse /realms answers a body with no realms at all', async () => {
+      const fetch = pulseFetch({ json: () => Promise.resolve({}) })
+
+      const provider = await createMainRealmProviderComponent({ config: pulseConfig(), fetch, logs })
+      const status = await provider.getStatus()
+
+      // A malformed body must not throw into the getStatus catch: healthy still comes from /health.
+      expect(status.healthy).toBe(true)
+      expect(status.userCount).toBe(0)
+    })
+
+    it('never reads /about or /core-status', async () => {
+      const fetch = pulseFetch({ json: () => Promise.resolve(packRealms.body) })
 
       const provider = await createMainRealmProviderComponent({ config: pulseConfig(), fetch, logs })
       await provider.getStatus()
 
       const urls = fetch.fetch.mock.calls.map((call: any[]) => String(call[0]))
+      expect(urls.some((url: string) => url.endsWith('/about'))).toBe(false)
       expect(urls.some((url: string) => url.includes('/core-status'))).toBe(false)
       expect(urls.some((url: string) => url.includes(STATS_URL))).toBe(false)
     })
 
+    it('reports unhealthy when Pulse /health is not 200, keeping the peer count', async () => {
+      const fetch = pulseFetch({ json: () => Promise.resolve(packRealms.body) }, 503)
+
+      const provider = await createMainRealmProviderComponent({ config: pulseConfig(), fetch, logs })
+      const status = await provider.getStatus()
+
+      expect(status.healthy).toBe(false)
+      expect(status.userCount).toBe(packMainPeers)
+    })
+
     it('still points clients at the ws-connector adapter', async () => {
-      const fetch = makeFetch({
-        '/about': { json: () => Promise.resolve(packAbout.body) },
-        '/health': { status: 200 },
-        '/status': connectorStatus
-      })
+      const fetch = pulseFetch({ json: () => Promise.resolve(packRealms.body) })
 
       const provider = await createMainRealmProviderComponent({ config: pulseConfig(), fetch, logs })
       const status = await provider.getStatus()
@@ -147,6 +176,28 @@ describe('main realm provider', () => {
         realmName: 'main',
         adapter: `archipelago:archipelago:wss://archipelago-ws-connector.decentraland.org/ws`
       })
+    })
+
+    it('exposes the main realm name without a round trip, so /hot-scenes can label it', async () => {
+      const fetch = pulseFetch({ json: () => Promise.resolve(packRealms.body) })
+
+      const provider = await createMainRealmProviderComponent({ config: pulseConfig(), fetch, logs })
+
+      expect(provider.realmName).toBe('main')
+      expect(fetch.fetch).not.toHaveBeenCalled()
+    })
+
+    it('fails at component creation when PULSE_URL is not configured', async () => {
+      // The real config component throws on a missing requireString key; the mock above resolves
+      // undefined, which would hide the startup failure.
+      const config = createConfigComponent({
+        PRESENCE_SOURCE: 'pulse',
+        ARCHIPELAGO_WS_CONNECTOR_URL: WS_CONNECTOR_URL
+      })
+      const fetch = makeFetch({})
+
+      await expect(createMainRealmProviderComponent({ config, fetch, logs })).rejects.toThrow(/PULSE_URL/)
+      expect(fetch.fetch).not.toHaveBeenCalled()
     })
   })
 })
