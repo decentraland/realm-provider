@@ -35,8 +35,8 @@ This service interacts with the following services:
 
 - **[Catalyst Network](https://github.com/decentraland/catalyst)**: Queries available Catalyst nodes for realm information, health status, and user counts via the `/about` endpoint
 - **[Archipelago Workers](https://github.com/decentraland/archipelago-workers)**: Provides the default MAIN realm status and configuration for Genesis City connections (`PRESENCE_SOURCE=archipelago`)
-- **Pulse**: Source of online-player information — `/about` for the MAIN realm user count and `/health` for its liveness (`PRESENCE_SOURCE=pulse`)
-- **[comms-gatekeeper](https://github.com/decentraland/comms-gatekeeper)**: Computes `/hot-scenes` from its presence map; this service proxies it (`PRESENCE_SOURCE=pulse`)
+- **Pulse**: Source of online-player information — `/realms` for the MAIN realm (Genesis City) peer count and `/health` for its liveness (`PRESENCE_SOURCE=pulse`)
+- **[comms-gatekeeper](https://github.com/decentraland/comms-gatekeeper)**: Computes `/hot-scenes` from its presence map; this service proxies it, adding the MAIN realm to each entry's `realms` distribution (`PRESENCE_SOURCE=pulse`)
 - **[Catalyst DAO Smart Contract](https://github.com/decentraland/catalyst-contracts)**: Retrieves the list of approved Catalyst nodes from the DAO on Ethereum mainnet
 - **Ethereum RPC**: Connects to Ethereum mainnet (or sepolia for testing) via `https://rpc.decentraland.org` to query the Catalyst DAO contract
 - **Cloudflare**: Uses CF-IPCountry header for geo-location based routing
@@ -90,13 +90,24 @@ defaults to `archipelago`, so a deploy with no config change behaves exactly as 
 | --- | --- | --- | --- |
 | `PRESENCE_SOURCE` | `archipelago` | always | `archipelago` or `pulse`. Any other value is read as `archipelago`. |
 | `ARCHIPELAGO_STATS_URL` | `https://archipelago-stats.decentraland.org` | `archipelago` | `/parcels` feeds `/hot-scenes`; `/core-status` feeds the MAIN realm user count. |
-| `PULSE_URL` | _(none — required when `PRESENCE_SOURCE=pulse`)_ | `pulse` | `/about` gives `userCount` for the MAIN realm, `/health` gives its liveness (200 == healthy). |
-| `COMMS_GATEKEEPER_URL` | `https://comms-gatekeeper.decentraland.org` | `pulse` | `/hot-scenes` is proxied through unchanged (5 s timeout, 10 s cache). |
+| `PULSE_URL` | _(none — required when `PRESENCE_SOURCE=pulse`)_ | `pulse` | `/realms` gives the MAIN realm peer count (`realms[name == 'main'].peers`, i.e. Genesis City only), `/health` gives its liveness (200 == healthy). |
+| `COMMS_GATEKEEPER_URL` | `https://comms-gatekeeper.decentraland.org` | `pulse` | `/hot-scenes` is proxied (5 s deadline, 10 s cache). |
 | `ARCHIPELAGO_WS_CONNECTOR_URL` | `https://archipelago-ws-connector.decentraland.org` | always | Advertised to clients as the MAIN realm comms adapter. |
 
-In `pulse` mode `GET /hot-scenes` is a straight proxy of `${COMMS_GATEKEEPER_URL}/hot-scenes`: the
-bare array is passed through unchanged, successful answers are cached for 10 seconds, and while the
-gatekeeper is warming (`503`) or unreachable the last cached array is served instead.
+With `PRESENCE_SOURCE=pulse`, startup fails when either `PULSE_URL` or `COMMS_GATEKEEPER_URL` is
+missing, rather than answering 500s per request.
+
+In `pulse` mode `GET /hot-scenes` proxies `${COMMS_GATEKEEPER_URL}/hot-scenes`. Every field the
+gatekeeper answers passes through untouched, and this service adds the `realms` distribution its own
+contract carries — a single entry for the MAIN realm with the scene's `usersTotalCount`, which is
+what `places` reads. The upstream call has a 5 second deadline that covers the body read as well as
+the headers; successful answers are cached for 10 seconds, and requests that arrive during a cache
+miss share one upstream call instead of each making their own.
+
+While the gatekeeper is warming (`503`) or unreachable, a cached array younger than 60 seconds is
+served with an `X-Cache: stale` header (and a warning log). Beyond that age the upstream status is
+passed on instead of a stale list: a `503 {"ok":false,"error":"warming"}` reaches the client as it
+came, while a connection failure or an elapsed deadline becomes this service's own `503`.
 
 ### Running the Service
 

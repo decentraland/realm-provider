@@ -24,8 +24,8 @@
 - Catalyst Network: Queries available Catalyst nodes for realm information
 - Archipelago Workers: MAIN realm status and configuration (`PRESENCE_SOURCE=archipelago`)
 - Stats Service: Parcel peer counts for hot scenes, and `/core-status` for the MAIN realm user count (`PRESENCE_SOURCE=archipelago`)
-- Pulse: `/about` (MAIN realm `userCount`) and `/health` (liveness) (`PRESENCE_SOURCE=pulse`)
-- comms-gatekeeper: `/hot-scenes`, proxied through unchanged (`PRESENCE_SOURCE=pulse`)
+- Pulse: `/realms` (MAIN realm peer count, Genesis City only) and `/health` (liveness) (`PRESENCE_SOURCE=pulse`)
+- comms-gatekeeper: `/hot-scenes`, proxied with the MAIN realm added to each entry's `realms` (`PRESENCE_SOURCE=pulse`)
 
 **Key Concepts:**
 

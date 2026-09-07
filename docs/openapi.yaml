@@ -155,11 +155,17 @@ paths:
 
         The source depends on the `PRESENCE_SOURCE` environment variable:
           * `archipelago` (default): scenes are aggregated from `ARCHIPELAGO_STATS_URL/parcels`, and
-            each entry carries a `realms` distribution.
-          * `pulse`: the response of `COMMS_GATEKEEPER_URL/hot-scenes` is proxied through unchanged
-            (5 second timeout, successful answers cached for 10 seconds). While comms-gatekeeper is
-            warming up or unreachable the last cached array is served; if nothing is cached yet, its
-            `503` is passed on.
+            each entry's `realms` distribution is computed per realm.
+          * `pulse`: `COMMS_GATEKEEPER_URL/hot-scenes` is proxied. Every field comms-gatekeeper
+            answers is passed through untouched (`creator`, `projectId` and `description` included)
+            and a single-entry `realms` distribution for the main realm is added, so the entry shape
+            stays the one described below. The upstream call has a 5 second deadline (body read
+            included) and successful answers are cached for 10 seconds; requests arriving during a
+            cache miss share one upstream call.
+
+            While comms-gatekeeper is warming up (`503`) or unreachable, a cached array less than
+            60 seconds old is served with an `X-Cache: stale` response header. Older than that, or
+            with nothing cached, the failure is reported (see the `503` response).
       operationId: getHotScenes
       security: []
       tags:
@@ -174,17 +180,18 @@ paths:
                 items:
                   $ref: '#/components/schemas/HotSceneInfo'
               example:
-                - id: 0xScene1
+                - id: bafkreig4zx2kowhjlinc4s4fnvj3s3ak7dbzxe3zxfk5lcjjrf46wycmau
                   name: Genesis Plaza
-                  baseCoords: [0, 0]
-                  parcels: [[0, 0], [0, 1], [1, 0], [1, 1]]
-                  usersTotalCount: 87
+                  baseCoords: [-3, -2]
+                  usersTotalCount: 9
+                  parcels: [[-1, -4], [0, -4], [1, -4], [-1, -3], [0, -3]]
+                  thumbnail: https://peer.decentraland.org/content/contents/bafybeihjx4ugiye3ruqfcv54tu5p5keuy3x2l2u2o5otfczlb6dfp734bq
+                  creator: Decentraland Foundation
+                  projectId: c0137195-4c6b-4d23-af5b-457d253cdb0f
+                  description: Decentraland's official spawn point.
                   realms:
                     - serverName: main
-                      usersCount: 50
-                    - serverName: catalyst-1
-                      usersCount: 37
-                  thumbnail: https://content.decentraland.org/thumbnail.png
+                      usersCount: 9
         '400':
           description: Bad request
           content:
@@ -200,11 +207,20 @@ paths:
         '503':
           description: |
             Only when `PRESENCE_SOURCE=pulse`: comms-gatekeeper is still priming its presence map, or
-            it could not be reached, and nothing is cached yet.
+            it could not be reached, and there is no cached array younger than 60 seconds.
+
+            Two bodies are possible. When comms-gatekeeper answered a status of its own, that status
+            and body are passed through verbatim — while it is warming that body is
+            `{"ok": false, "error": "warming"}`. When it could not be reached at all (connection
+            failure, or the 5 second deadline elapsed), realm-provider answers its own `{"error"}`
+            body. A non-JSON upstream error body (a load balancer's HTML page, say) also keeps the
+            upstream status, with realm-provider's `{"error"}` body in its place.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                oneOf:
+                  - $ref: '#/components/schemas/GatekeeperWarming'
+                  - $ref: '#/components/schemas/Error'
 
   /main/about:
     get:
@@ -280,7 +296,10 @@ components:
           type: number
           description: |
             Current number of users connected to this realm. Always 0 for third-party catalyst
-            realms, which no longer report a comms user count.
+            realms, which no longer report a comms user count. For the main realm it is the number
+            of peers in Genesis City: `ARCHIPELAGO_STATS_URL/core-status` when
+            `PRESENCE_SOURCE=archipelago`, or the `main` entry of `PULSE_URL/realms` when
+            `PRESENCE_SOURCE=pulse`.
           example: 150
 
     HotSceneInfo:
@@ -325,7 +344,9 @@ components:
           example: 87
         realms:
           type: array
-          description: Distribution of users across realms for this scene
+          description: |
+            Distribution of users across realms for this scene. With `PRESENCE_SOURCE=pulse` this is
+            always a single entry for the main realm, carrying `usersTotalCount`.
           items:
             $ref: '#/components/schemas/SceneRealmInfo'
         thumbnail:
@@ -333,6 +354,40 @@ components:
           format: uri
           description: Optional thumbnail URL for the scene
           example: https://content.decentraland.org/thumbnail.png
+        creator:
+          type: string
+          description: |
+            Scene creator, as published in the scene metadata. Only present with
+            `PRESENCE_SOURCE=pulse`, and only when comms-gatekeeper knows it.
+          example: Decentraland Foundation
+        projectId:
+          type: string
+          description: |
+            Builder project id of the scene. Only present with `PRESENCE_SOURCE=pulse`, and only
+            when comms-gatekeeper knows it.
+          example: c0137195-4c6b-4d23-af5b-457d253cdb0f
+        description:
+          type: string
+          description: |
+            Scene description, as published in the scene metadata. Only present with
+            `PRESENCE_SOURCE=pulse`, and only when comms-gatekeeper knows it.
+          example: Decentraland's official spawn point.
+
+    GatekeeperWarming:
+      type: object
+      description: |
+        The body comms-gatekeeper answers while its presence map is priming, passed through verbatim
+        by `GET /hot-scenes` in `pulse` mode.
+      required:
+        - ok
+        - error
+      properties:
+        ok:
+          type: boolean
+          example: false
+        error:
+          type: string
+          example: warming
 
     SceneRealmInfo:
       type: object
