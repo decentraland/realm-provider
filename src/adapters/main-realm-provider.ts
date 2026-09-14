@@ -1,16 +1,15 @@
 import { AppComponents } from '../types'
 import { drainResponse } from '../logic/fetch-utils'
-import { getPresenceSource } from '../logic/presence-source'
 
-/** One entry of Pulse `GET /realms`: realm names are lowercase, `main` is Genesis City. */
-type PulseRealm = {
-  name?: string
-  peers?: number
+/** Pulse `GET /about`: `userCount` totals every realm (worlds and local scenes included), not just
+ * Genesis City. WP6 (rev 3) accepts that scope for the main realm's `usersCount`. */
+type PulseAbout = {
+  userCount?: number
 }
 
 // How long we wait for Pulse before reporting the realm as unavailable. undici applies no default
 // request timeout, so without a deadline a Pulse pod that accepts the connection and never answers
-// would hang /realms and /main/about until the client gives up. Same 5 s the /hot-scenes proxy uses.
+// would hang /about and /main/about until the client gives up. Same 5 s the /hot-scenes proxy uses.
 const PULSE_TIMEOUT_MS = 5000
 
 export type CoreStatus = {
@@ -37,79 +36,62 @@ export type MainRealmProviderComponent = {
 
 export async function createMainRealmProviderComponent({
   config,
-  fetch,
-  logs
-}: Pick<AppComponents, 'config' | 'fetch' | 'logs'>): Promise<MainRealmProviderComponent> {
-  // The comms adapter still points clients at the ws-connector, whatever the presence source is.
+  fetch
+}: Pick<AppComponents, 'config' | 'fetch'>): Promise<MainRealmProviderComponent> {
+  // The comms adapter still points clients at the ws-connector, unrelated to online-player counts.
   const wsConnectorUrl = await config.requireString('ARCHIPELAGO_WS_CONNECTOR_URL')
   const adapter = `archipelago:archipelago:${wsConnectorUrl.replace(/^http/, 'ws')}/ws`
   const realmName = 'main'
 
-  const presenceSource = await getPresenceSource(config, logs)
+  const pulseUrl = await config.requireString('PULSE_URL')
 
-  let fetchCoreStatus: () => Promise<MainRealmStatus>
+  // Pulse splits what the retired archipelago-stats status endpoint used to answer in one shot:
+  // /about carries `userCount`, /health carries liveness (200 == healthy).
+  async function fetchCoreStatus(): Promise<MainRealmStatus> {
+    // One deadline for both reads, the body read included: the fetch component's own `timeout`
+    // stops covering the request as soon as the headers are in, so we hold the AbortController
+    // it uses and abort it ourselves. A timeout rejects, and the getStatus catch below turns
+    // that into `{ healthy: false, userCount: 0 }` — an unreachable Pulse's answer today.
+    const abortController = new AbortController()
+    const requestOptions = { timeout: PULSE_TIMEOUT_MS, abortController }
+    const deadline = setTimeout(() => abortController.abort(), PULSE_TIMEOUT_MS)
 
-  if (presenceSource === 'pulse') {
-    const pulseUrl = await config.requireString('PULSE_URL')
+    try {
+      // allSettled, not all: with Promise.all a leg that answers *after* its sibling rejected is
+      // abandoned unread, and undici keeps that socket pinned until GC (see fetch-utils).
+      const [aboutResult, healthResult] = await Promise.allSettled([
+        fetch.fetch(`${pulseUrl}/about`, requestOptions),
+        fetch.fetch(`${pulseUrl}/health`, requestOptions)
+      ])
 
-    // Pulse splits what /core-status used to answer in one shot: /realms carries the per-realm peer
-    // counts, /health carries liveness (200 == healthy). We deliberately do NOT read /about: its
-    // `userCount` totals every realm (worlds and local scenes included), while this realm's
-    // `usersCount` has always meant Genesis City only.
-    fetchCoreStatus = async function fetchPulseStatus(): Promise<MainRealmStatus> {
-      // One deadline for both reads, the body read included: the fetch component's own `timeout`
-      // stops covering the request as soon as the headers are in, so we hold the AbortController
-      // it uses and abort it ourselves. A timeout rejects, and the getStatus catch below turns
-      // that into `{ healthy: false, userCount: 0 }` — an unreachable Pulse's answer today.
-      const abortController = new AbortController()
-      const requestOptions = { timeout: PULSE_TIMEOUT_MS, abortController }
-      const deadline = setTimeout(() => abortController.abort(), PULSE_TIMEOUT_MS)
-
-      try {
-        // allSettled, not all: with Promise.all a leg that answers *after* its sibling rejected is
-        // abandoned unread, and undici keeps that socket pinned until GC (see fetch-utils).
-        const [realmsResult, healthResult] = await Promise.allSettled([
-          fetch.fetch(`${pulseUrl}/realms`, requestOptions),
-          fetch.fetch(`${pulseUrl}/health`, requestOptions)
-        ])
-
-        if (healthResult.status === 'fulfilled') {
-          await drainResponse(healthResult.value)
-        }
-
-        if (realmsResult.status === 'rejected') {
-          throw realmsResult.reason
-        }
-
-        if (healthResult.status === 'rejected') {
-          await drainResponse(realmsResult.value)
-          throw healthResult.reason
-        }
-
-        const realmsResponse = realmsResult.value
-
-        if (!realmsResponse.ok) {
-          await drainResponse(realmsResponse)
-          throw new Error(`/realms returned ${realmsResponse.status} for ${pulseUrl}`)
-        }
-
-        // Defaulted at every hop: a body without `realms`, or an entry without `peers`, means no
-        // Genesis City peers — never a TypeError that would degrade the realm to unhealthy.
-        const { realms = [] } = ((await realmsResponse.json()) ?? {}) as { realms?: PulseRealm[] }
-        const userCount = realms.find((realm) => realm?.name === realmName)?.peers ?? 0
-
-        return { healthy: healthResult.value.status === 200, userCount, adapter, realmName }
-      } finally {
-        clearTimeout(deadline)
+      if (healthResult.status === 'fulfilled') {
+        await drainResponse(healthResult.value)
       }
-    }
-  } else {
-    const statsUrl = await config.requireString('ARCHIPELAGO_STATS_URL')
 
-    fetchCoreStatus = async function fetchArchipelagoStatus(): Promise<MainRealmStatus> {
-      const response = await fetch.fetch(`${statsUrl}/core-status`)
-      const coreStatus: CoreStatus = await response.json()
-      return { ...coreStatus, adapter, realmName }
+      if (aboutResult.status === 'rejected') {
+        throw aboutResult.reason
+      }
+
+      if (healthResult.status === 'rejected') {
+        await drainResponse(aboutResult.value)
+        throw healthResult.reason
+      }
+
+      const aboutResponse = aboutResult.value
+
+      if (!aboutResponse.ok) {
+        await drainResponse(aboutResponse)
+        throw new Error(`/about returned ${aboutResponse.status} for ${pulseUrl}`)
+      }
+
+      // Defaulted: a body without `userCount` means no users — never a TypeError that would
+      // degrade the realm to unhealthy.
+      const about = ((await aboutResponse.json()) ?? {}) as PulseAbout
+      const userCount = about.userCount ?? 0
+
+      return { healthy: healthResult.value.status === 200, userCount, adapter, realmName }
+    } finally {
+      clearTimeout(deadline)
     }
   }
 
