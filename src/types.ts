@@ -8,7 +8,6 @@ import type { IHttpServerComponent, IFetchComponent } from '@dcl/core-commons'
 import { metricDeclarations } from './metrics'
 import { CatalystsProvider } from './adapters/realm-provider'
 import { MainRealmProviderComponent } from './adapters/main-realm-provider'
-import { IContentComponent } from './adapters/content'
 import { About } from '@dcl/catalyst-api-specs/lib/client'
 
 export type GlobalContext = {
@@ -24,7 +23,6 @@ export type BaseComponents = {
   metrics: IMetricsComponent<keyof typeof metricDeclarations>
   catalystsProvider: CatalystsProvider
   mainRealmProvider: MainRealmProviderComponent
-  content: IContentComponent
 }
 
 // components used in runtime

@@ -22,14 +22,19 @@
 **External Dependencies:**
 
 - Catalyst Network: Queries available Catalyst nodes for realm information
-- Archipelago Workers: MAIN realm status and configuration
-- Stats Service: Hot scenes data (from archipelago-workers stats service)
+- Archipelago Workers: Runs the ws-connector clients are pointed at as the MAIN realm's comms adapter
+- Pulse: The only source of online-player information — `/realms` (MAIN realm user count, the `main` entry's `peers`) and `/health` (liveness)
+- comms-gatekeeper: `/hot-scenes`, proxied with the MAIN realm added to each entry's `realms`
 
 **Key Concepts:**
 
 - **Realm**: A communication/render configuration specifying which Catalyst, Lambdas, and comms services to use
 - **MAIN Realm**: Default realm managed by Archipelago workers for Genesis City
 - **Hot Scenes**: Popular/active scenes for user discovery
+- **Online-player information**: Pulse and comms-gatekeeper are the only sources — no configurable
+  switch, no fallback. `PULSE_URL` and `COMMS_GATEKEEPER_URL` are required at boot; the process
+  fails to start when either is missing or is not an absolute `http(s)` URL. Rollback is deploying
+  the previous image, which aggregates from archipelago-stats and needs it running.
 
 **Scope and Responsibilities — What Realm Provider Is NOT:**
 

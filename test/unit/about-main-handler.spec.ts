@@ -47,6 +47,7 @@ describe('about main handler', () => {
         }
 
         const mainRealmProvider = {
+          realmName: 'main',
           getStatus: jest.fn().mockResolvedValue({
             healthy: true,
             userCount: 100,
@@ -112,6 +113,7 @@ describe('about main handler', () => {
           }
 
           const mainRealmProvider = {
+            realmName: 'main',
             getStatus: jest.fn().mockResolvedValue({
               healthy: true,
               userCount: 100,
@@ -180,6 +182,7 @@ describe('about main handler', () => {
           }
 
           const mainRealmProvider = {
+            realmName: 'main',
             getStatus: jest.fn().mockResolvedValue({
               healthy: true,
               userCount: 100,
@@ -232,6 +235,7 @@ describe('about main handler', () => {
           }
 
           const mainRealmProvider = {
+            realmName: 'main',
             getStatus: jest.fn().mockResolvedValue({
               healthy: true,
               userCount: 100,
@@ -278,6 +282,7 @@ describe('about main handler', () => {
           }
 
           const mainRealmProvider = {
+            realmName: 'main',
             getStatus: jest.fn().mockResolvedValue({
               healthy: true,
               userCount: 100,
@@ -322,6 +327,7 @@ describe('about main handler', () => {
           }
 
           const mainRealmProvider = {
+            realmName: 'main',
             getStatus: jest.fn().mockResolvedValue({
               healthy: true,
               userCount: 100,

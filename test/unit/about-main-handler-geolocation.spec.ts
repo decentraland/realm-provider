@@ -68,6 +68,7 @@ describe('about main handler geolocation integration', () => {
           }
 
           const mainRealmProvider = {
+            realmName: 'main',
             getStatus: jest.fn().mockResolvedValue({
               healthy: true,
               userCount: 100,
@@ -120,6 +121,7 @@ describe('about main handler geolocation integration', () => {
           }
 
           const mainRealmProvider = {
+            realmName: 'main',
             getStatus: jest.fn().mockResolvedValue({
               healthy: true,
               userCount: 100,
@@ -157,6 +159,7 @@ describe('about main handler geolocation integration', () => {
         }
 
         const mainRealmProvider = {
+          realmName: 'main',
           getStatus: jest.fn().mockResolvedValue({
             healthy: true,
             userCount: 100,
@@ -192,6 +195,7 @@ describe('about main handler geolocation integration', () => {
           }
 
           const mainRealmProvider = {
+            realmName: 'main',
             getStatus: jest.fn().mockResolvedValue({
               healthy: true,
               userCount: 100,
@@ -229,6 +233,7 @@ describe('about main handler geolocation integration', () => {
           }
 
           const mainRealmProvider = {
+            realmName: 'main',
             getStatus: jest.fn().mockResolvedValue({
               healthy: true,
               userCount: 100,
@@ -274,6 +279,7 @@ describe('about main handler geolocation integration', () => {
           }
 
           const mainRealmProvider = {
+            realmName: 'main',
             getStatus: jest.fn().mockResolvedValue({
               healthy: true,
               userCount: 100,

@@ -11,13 +11,23 @@ import { metricDeclarations } from './metrics'
 import { createCatalystsProvider } from './adapters/realm-provider'
 import { createFetchComponent } from '@dcl/fetch-component'
 import { createMainRealmProviderComponent } from './adapters/main-realm-provider'
-import { createContentComponent } from './adapters/content'
+import { requireHttpUrl } from './logic/config-validation'
 
 // Initialize all the components of the app
 export async function initComponents(): Promise<AppComponents> {
   const config = await createDotEnvConfigComponent({ path: ['.env.default', '.env'] })
+
+  // Pulse and comms-gatekeeper are the only sources of online-player information: fail here,
+  // before any other component does real work (a metrics timer, a DAO contract lookup), when
+  // either is missing or malformed. `main-realm-provider.ts` and `hot-scenes-handler.ts` call the
+  // same validator for their own read, so dropping either line here still fails loudly — just
+  // later than boot — instead of silently letting a bad URL through.
+  await requireHttpUrl(config, 'PULSE_URL')
+  await requireHttpUrl(config, 'COMMS_GATEKEEPER_URL')
+
   const metrics = await createMetricsComponent(metricDeclarations, { config })
   const logs = await createLogComponent({ metrics })
+
   const server = await createServerComponent<GlobalContext>(
     { config, logs },
     {
@@ -29,8 +39,7 @@ export async function initComponents(): Promise<AppComponents> {
   const statusChecks = await createStatusCheckComponent({ server, config })
   const fetch = createFetchComponent()
   const catalystsProvider = await createCatalystsProvider({ logs, fetch, config })
-  const mainRealmProvider = await createMainRealmProviderComponent({ logs, fetch, config })
-  const content = await createContentComponent({ fetch, config })
+  const mainRealmProvider = await createMainRealmProviderComponent({ fetch, config })
 
   await instrumentHttpServerWithPromClientRegistry({ metrics, server, config, registry: metrics.registry! })
 
@@ -42,7 +51,6 @@ export async function initComponents(): Promise<AppComponents> {
     fetch,
     metrics,
     catalystsProvider,
-    mainRealmProvider,
-    content
+    mainRealmProvider
   }
 }

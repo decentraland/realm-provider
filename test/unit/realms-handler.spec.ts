@@ -10,59 +10,51 @@ describe('realms handler', () => {
     return realmsHandler({ components: { catalystsProvider, config, mainRealmProvider }, url })
   }
 
+  function makeMainRealm(healthy: boolean, userCount: number): MainRealmProviderComponent {
+    return {
+      realmName: 'main',
+      getStatus: jest.fn().mockResolvedValue({ healthy, userCount, adapter: 'adapter', realmName: 'main' })
+    }
+  }
+
+  function makeCatalysts() {
+    return {
+      getHealhtyCatalysts: jest.fn().mockResolvedValue([
+        {
+          healthy: true,
+          acceptingUsers: true,
+          about: {
+            configurations: {
+              realmName: 'hera'
+            },
+            comms: {
+              healthy: true,
+              usersCount: 10
+            }
+          },
+          url: 'http://peer-ec1.decentraland.org'
+        },
+        {
+          healthy: true,
+          acceptingUsers: true,
+          about: {
+            configurations: {
+              realmName: 'hela'
+            }
+          },
+          url: 'http://peer-ec2.decentraland.org'
+        }
+      ])
+    }
+  }
+
   describe('when requesting available realms', () => {
     describe('and the main realm is available', () => {
-      it('should return healthy catalyst + main realm', async () => {
-        const catalysts = {
-          getHealhtyCatalysts: jest.fn().mockResolvedValue([
-            {
-              healthy: true,
-              acceptingUsers: true,
-              about: {
-                configurations: {
-                  realmName: 'hera'
-                },
-                comms: {
-                  healthy: true,
-                  usersCount: 10
-                }
-              },
-              url: 'http://peer-ec1.decentraland.org'
-            },
-            {
-              healthy: true,
-              acceptingUsers: true,
-              about: {
-                configurations: {
-                  realmName: 'hela'
-                }
-              },
-              url: 'http://peer-ec2.decentraland.org'
-            }
-          ])
-        }
+      it('should return every catalyst that reports comms + main realm', async () => {
+        const { body } = await executeHandler(makeCatalysts(), makeMainRealm(true, 100))
 
-        const mainRealmProvider = {
-          getStatus: jest.fn().mockResolvedValue({
-            healthy: true,
-            userCount: 100,
-            adapter: 'adapter',
-            realmName: 'main'
-          })
-        }
-
-        const { body } = await executeHandler(catalysts, mainRealmProvider)
         expect(body).toHaveLength(2)
-
-        const hera = body.find((c) => c.serverName === 'hera')
-        const main = body.find((c) => c.serverName === 'main')
-
-        expect(hera).toEqual({
-          serverName: 'hera',
-          url: 'http://peer-ec1.decentraland.org',
-          usersCount: 10
-        })
-        expect(main).toEqual({
+        expect(body.find((c) => c.serverName === 'main')).toEqual({
           serverName: 'main',
           url: 'https://localhost/main',
           usersCount: 100
@@ -72,56 +64,33 @@ describe('realms handler', () => {
 
     describe('and the main realm is not available', () => {
       it('should return only healthy catalysts', async () => {
-        const catalysts = {
-          getHealhtyCatalysts: jest.fn().mockResolvedValue([
-            {
-              healthy: true,
-              acceptingUsers: true,
-              about: {
-                configurations: {
-                  realmName: 'hera'
-                },
-                comms: {
-                  healthy: true,
-                  usersCount: 10
-                }
-              },
-              url: 'http://peer-ec1.decentraland.org'
-            },
-            {
-              healthy: true,
-              acceptingUsers: true,
-              about: {
-                configurations: {
-                  realmName: 'hela'
-                }
-              },
-              url: 'http://peer-ec2.decentraland.org'
-            }
-          ])
-        }
+        const { body } = await executeHandler(makeCatalysts(), makeMainRealm(false, 100))
 
-        const mainRealmProvider = {
-          getStatus: jest.fn().mockResolvedValue({
-            healthy: false,
-            userCount: 100,
-            adapter: 'adapter',
-            realmName: 'main'
-          })
-        }
-
-        const { body } = await executeHandler(catalysts, mainRealmProvider)
         expect(body).toHaveLength(1)
+        expect(body.find((c) => c.serverName === 'main')).toBeFalsy()
+      })
+    })
 
-        const hera = body.find((c) => c.serverName === 'hera')
-        const main = body.find((c) => c.serverName === 'main')
+    describe('and a catalyst has no comms section in its /about', () => {
+      it('should leave it out, exactly as before this work package', async () => {
+        // WP6 drops the *user count* read from about.comms, not the guard: which realms /realms
+        // lists must not change on a deploy that only ships this code.
+        const { body } = await executeHandler(makeCatalysts(), makeMainRealm(false, 0))
 
-        expect(hera).toEqual({
+        expect(body.find((c) => c.serverName === 'hela')).toBeUndefined()
+        expect(body.map((c) => c.serverName)).toEqual(['hera'])
+      })
+    })
+
+    describe('and a catalyst still reports a comms user count', () => {
+      it('should report 0 users for it, since the catalyst count is meaningless', async () => {
+        const { body } = await executeHandler(makeCatalysts(), makeMainRealm(false, 0))
+
+        expect(body.find((c) => c.serverName === 'hera')).toEqual({
           serverName: 'hera',
           url: 'http://peer-ec1.decentraland.org',
-          usersCount: 10
+          usersCount: 0
         })
-        expect(main).toBeFalsy()
       })
     })
   })

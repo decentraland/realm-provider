@@ -108,6 +108,9 @@ paths:
       description: |
         Returns all healthy catalyst realms plus the main realm if available.
         Each realm includes its server name, URL, and current user count.
+
+        Catalyst nodes no longer run comms, so their `/about` carries no user count: third-party
+        realms are always reported with `usersCount: 0`. Only the main realm reports a real count.
       operationId: getRealms
       security: []
       tags:
@@ -127,10 +130,10 @@ paths:
                   usersCount: 150
                 - serverName: catalyst-1
                   url: https://peer-ec1.decentraland.org
-                  usersCount: 75
+                  usersCount: 0
                 - serverName: catalyst-2
                   url: https://peer-wc1.decentraland.org
-                  usersCount: 42
+                  usersCount: 0
         '400':
           description: Bad request
           content:
@@ -146,10 +149,20 @@ paths:
 
   /hot-scenes:
     get:
-      summary: Get hot scenes across all realms
+      summary: Get hot scenes
       description: |
-        Returns up to 100 scenes sorted by total user count across all realms.
-        Each scene includes its ID, name, coordinates, parcels, user count, and realm distribution.
+        Returns up to 100 scenes sorted by total user count, as a bare array. This service proxies
+        `COMMS_GATEKEEPER_URL/hot-scenes`, the only source: comms-gatekeeper computes the list from
+        its presence map. Every field comms-gatekeeper answers is passed through untouched
+        (`creator`, `projectId` and `description` included) and a single-entry `realms` distribution
+        for the main realm is added, so the entry shape stays the one described below. The upstream
+        call has a 5 second deadline (body read included) and successful answers are cached for 10
+        seconds; requests arriving during a cache miss share one upstream call.
+
+        While comms-gatekeeper is warming up (`503`) or unreachable, a cached array less than
+        60 seconds old is served with an `X-Cache: stale` response header. Older than that, or with
+        nothing cached, the failure is reported (see the `503` response) — a network error never
+        falls back to an empty list, which would look like nobody is online rather than an outage.
       operationId: getHotScenes
       security: []
       tags:
@@ -164,17 +177,18 @@ paths:
                 items:
                   $ref: '#/components/schemas/HotSceneInfo'
               example:
-                - id: 0xScene1
+                - id: bafkreig4zx2kowhjlinc4s4fnvj3s3ak7dbzxe3zxfk5lcjjrf46wycmau
                   name: Genesis Plaza
-                  baseCoords: [0, 0]
-                  parcels: [[0, 0], [0, 1], [1, 0], [1, 1]]
-                  usersTotalCount: 87
+                  baseCoords: [-3, -2]
+                  usersTotalCount: 9
+                  parcels: [[-1, -4], [0, -4], [1, -4], [-1, -3], [0, -3]]
+                  thumbnail: https://peer.decentraland.org/content/contents/bafybeihjx4ugiye3ruqfcv54tu5p5keuy3x2l2u2o5otfczlb6dfp734bq
+                  creator: Decentraland Foundation
+                  projectId: c0137195-4c6b-4d23-af5b-457d253cdb0f
+                  description: Decentraland's official spawn point.
                   realms:
                     - serverName: main
-                      usersCount: 50
-                    - serverName: catalyst-1
-                      usersCount: 37
-                  thumbnail: https://content.decentraland.org/thumbnail.png
+                      usersCount: 9
         '400':
           description: Bad request
           content:
@@ -187,6 +201,33 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+        '502':
+          description: |
+            comms-gatekeeper answered a 2xx whose body is not an array, so it cannot be served as
+            this endpoint's response. The body is neither cached nor passed through; a cached array
+            younger than 60 seconds is served in its place if there is one (with `X-Cache: stale`),
+            otherwise this status.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '503':
+          description: |
+            comms-gatekeeper is still priming its presence map, or it could not be reached, and
+            there is no cached array younger than 60 seconds.
+
+            Two bodies are possible. When comms-gatekeeper answered a status of its own, that status
+            and body are passed through verbatim — while it is warming that body is
+            `{"ok": false, "error": "warming"}`. When it could not be reached at all (connection
+            failure, or the 5 second deadline elapsed), realm-provider answers its own `{"error"}`
+            body. A non-JSON upstream error body (a load balancer's HTML page, say) also keeps the
+            upstream status, with realm-provider's `{"error"}` body in its place.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/GatekeeperWarming'
+                  - $ref: '#/components/schemas/Error'
 
   /main/about:
     get:
@@ -260,7 +301,10 @@ components:
           example: https://peer.decentraland.org
         usersCount:
           type: number
-          description: Current number of users connected to this realm
+          description: |
+            Current number of users connected to this realm. Always 0 for third-party catalyst
+            realms, which no longer report a comms user count. For the main realm it is
+            `PULSE_URL/realms`'s `main` entry `peers` (0 when absent).
           example: 150
 
     HotSceneInfo:
@@ -305,7 +349,9 @@ components:
           example: 87
         realms:
           type: array
-          description: Distribution of users across realms for this scene
+          description: |
+            Distribution of users across realms for this scene. Always a single entry for the main
+            realm, carrying `usersTotalCount`.
           items:
             $ref: '#/components/schemas/SceneRealmInfo'
         thumbnail:
@@ -313,6 +359,39 @@ components:
           format: uri
           description: Optional thumbnail URL for the scene
           example: https://content.decentraland.org/thumbnail.png
+        creator:
+          type: string
+          description: |
+            Scene creator, as published in the scene metadata. Only present when comms-gatekeeper
+            knows it.
+          example: Decentraland Foundation
+        projectId:
+          type: string
+          description: |
+            Builder project id of the scene. Only present when comms-gatekeeper knows it.
+          example: c0137195-4c6b-4d23-af5b-457d253cdb0f
+        description:
+          type: string
+          description: |
+            Scene description, as published in the scene metadata. Only present when
+            comms-gatekeeper knows it.
+          example: Decentraland's official spawn point.
+
+    GatekeeperWarming:
+      type: object
+      description: |
+        The body comms-gatekeeper answers while its presence map is priming, passed through
+        verbatim by `GET /hot-scenes`.
+      required:
+        - ok
+        - error
+      properties:
+        ok:
+          type: boolean
+          example: false
+        error:
+          type: string
+          example: warming
 
     SceneRealmInfo:
       type: object
