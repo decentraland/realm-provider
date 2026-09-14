@@ -36,7 +36,7 @@ This service interacts with the following services:
 
 - **[Catalyst Network](https://github.com/decentraland/catalyst)**: Queries available Catalyst nodes for realm information, health status, and user counts via the `/about` endpoint
 - **[Archipelago Workers](https://github.com/decentraland/archipelago-workers)**: Runs the ws-connector that clients are pointed at as the MAIN realm's comms adapter
-- **Pulse**: The only source of online-player information — `/about` for the MAIN realm user count and `/health` for its liveness
+- **Pulse**: The only source of online-player information — `/realms` (the `main` entry's `peers`) for the MAIN realm user count and `/health` for its liveness
 - **[comms-gatekeeper](https://github.com/decentraland/comms-gatekeeper)**: Computes `/hot-scenes` from its presence map; this service proxies it, adding the MAIN realm to each entry's `realms` distribution
 - **[Catalyst DAO Smart Contract](https://github.com/decentraland/catalyst-contracts)**: Retrieves the list of approved Catalyst nodes from the DAO on Ethereum mainnet
 - **Ethereum RPC**: Connects to Ethereum mainnet (or sepolia for testing) via `https://rpc.decentraland.org` to query the Catalyst DAO contract
@@ -93,7 +93,7 @@ Rollback is deploying the previous image, which requires archipelago-stats to st
 
 | Variable | Default | Description |
 | --- | --- | --- |
-| `PULSE_URL` | _(none — required)_ | `/about` gives the MAIN realm user count (`userCount`), `/health` gives its liveness (200 == healthy). Both reads share one 5 s deadline; past it the realm is reported unhealthy with 0 users. |
+| `PULSE_URL` | _(none — required)_ | `/realms` gives the MAIN realm user count (the `main` entry's `peers`; 0 when absent), `/health` gives its liveness (200 == healthy). Both reads share one 5 s deadline; past it the realm is reported unhealthy with 0 users. |
 | `COMMS_GATEKEEPER_URL` | `https://comms-gatekeeper.decentraland.org` | `/hot-scenes` is proxied (5 s deadline, 10 s cache). |
 | `ARCHIPELAGO_WS_CONNECTOR_URL` | `https://archipelago-ws-connector.decentraland.org` | Advertised to clients as the MAIN realm comms adapter. Unrelated to online-player counts. |
 
@@ -135,7 +135,7 @@ yarn start
 ### Deployment
 
 Deploy this service only after comms-gatekeeper is serving `/hot-scenes` from its presence map and
-Pulse's HTTP surface (`/about`, `/health`) is up in the target environment. Deploying before that
+Pulse's HTTP surface (`/realms`, `/health`) is up in the target environment. Deploying before that
 leaves `/hot-scenes` answering `503` and the MAIN realm's `usersCount` at `0` — the endpoints have
 nothing to read yet.
 

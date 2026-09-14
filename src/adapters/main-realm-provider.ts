@@ -1,10 +1,13 @@
 import { AppComponents } from '../types'
 import { drainResponse } from '../logic/fetch-utils'
 
-/** Pulse `GET /about`: `userCount` totals every realm (worlds and local scenes included), not just
- * Genesis City. WP6 (rev 3) accepts that scope for the main realm's `usersCount`. */
-type PulseAbout = {
-  userCount?: number
+/** One entry of Pulse `GET /realms`: realm names are lowercase, `main` is Genesis City. Deliberately
+ * NOT `/about`: its `userCount` totals every realm (worlds and local scenes included), which would
+ * silently change what `/realms` `usersCount` and `/main/about` `comms.usersCount` / `bff.userCount`
+ * have always meant — Genesis City only. */
+type PulseRealm = {
+  name?: string
+  peers?: number
 }
 
 // How long we wait for Pulse before reporting the realm as unavailable. undici applies no default
@@ -46,7 +49,7 @@ export async function createMainRealmProviderComponent({
   const pulseUrl = await config.requireString('PULSE_URL')
 
   // Pulse splits what the retired archipelago-stats status endpoint used to answer in one shot:
-  // /about carries `userCount`, /health carries liveness (200 == healthy).
+  // /realms carries the per-realm peer counts, /health carries liveness (200 == healthy).
   async function fetchCoreStatus(): Promise<MainRealmStatus> {
     // One deadline for both reads, the body read included: the fetch component's own `timeout`
     // stops covering the request as soon as the headers are in, so we hold the AbortController
@@ -59,8 +62,8 @@ export async function createMainRealmProviderComponent({
     try {
       // allSettled, not all: with Promise.all a leg that answers *after* its sibling rejected is
       // abandoned unread, and undici keeps that socket pinned until GC (see fetch-utils).
-      const [aboutResult, healthResult] = await Promise.allSettled([
-        fetch.fetch(`${pulseUrl}/about`, requestOptions),
+      const [realmsResult, healthResult] = await Promise.allSettled([
+        fetch.fetch(`${pulseUrl}/realms`, requestOptions),
         fetch.fetch(`${pulseUrl}/health`, requestOptions)
       ])
 
@@ -68,26 +71,26 @@ export async function createMainRealmProviderComponent({
         await drainResponse(healthResult.value)
       }
 
-      if (aboutResult.status === 'rejected') {
-        throw aboutResult.reason
+      if (realmsResult.status === 'rejected') {
+        throw realmsResult.reason
       }
 
       if (healthResult.status === 'rejected') {
-        await drainResponse(aboutResult.value)
+        await drainResponse(realmsResult.value)
         throw healthResult.reason
       }
 
-      const aboutResponse = aboutResult.value
+      const realmsResponse = realmsResult.value
 
-      if (!aboutResponse.ok) {
-        await drainResponse(aboutResponse)
-        throw new Error(`/about returned ${aboutResponse.status} for ${pulseUrl}`)
+      if (!realmsResponse.ok) {
+        await drainResponse(realmsResponse)
+        throw new Error(`/realms returned ${realmsResponse.status} for ${pulseUrl}`)
       }
 
-      // Defaulted: a body without `userCount` means no users — never a TypeError that would
-      // degrade the realm to unhealthy.
-      const about = ((await aboutResponse.json()) ?? {}) as PulseAbout
-      const userCount = about.userCount ?? 0
+      // Defaulted at every hop: a body without `realms`, or an entry without `peers`, means no
+      // Genesis City peers — never a TypeError that would degrade the realm to unhealthy.
+      const { realms = [] } = ((await realmsResponse.json()) ?? {}) as { realms?: PulseRealm[] }
+      const userCount = realms.find((realm) => realm?.name === realmName)?.peers ?? 0
 
       return { healthy: healthResult.value.status === 200, userCount, adapter, realmName }
     } finally {

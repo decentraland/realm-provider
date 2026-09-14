@@ -304,7 +304,7 @@ components:
           description: |
             Current number of users connected to this realm. Always 0 for third-party catalyst
             realms, which no longer report a comms user count. For the main realm it is
-            `PULSE_URL/about`'s `userCount`.
+            `PULSE_URL/realms`'s `main` entry `peers` (0 when absent).
           example: 150
 
     HotSceneInfo:

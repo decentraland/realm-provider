@@ -1,9 +1,0 @@
-{
-  "request": "GET /about",
-  "note": "exists today; userCount counts every realm",
-  "status": 200,
-  "body": {
-    "commitHash": "0000000",
-    "userCount": 5
-  }
-}

@@ -10,8 +10,9 @@ function readFixture(relativePath: string) {
   return JSON.parse(readFileSync(join(__dirname, '../fixtures/iteration-2', relativePath), 'utf-8'))
 }
 
-const packAbout = readFixture('http/about.json')
+const packRealms = readFixture('http/realms.json')
 const packHealth = readFixture('http/health.json')
+const mainPeers = packRealms.body.realms.find((realm: any) => realm.name === 'main').peers
 
 function makeConfig(overrides: Record<string, string> = {}) {
   const values: Record<string, string> = {
@@ -49,62 +50,66 @@ function makeFetch(routes: Record<string, MockResponse>) {
 
 const connectorStatus = { json: () => Promise.resolve({ version: '1.0.0', commitHash: 'abc1234' }) }
 
-function pulseFetch(aboutResponse: MockResponse, healthStatus = 200) {
+function pulseFetch(realmsResponse: MockResponse, healthStatus = 200) {
   return makeFetch({
-    '/about': aboutResponse,
+    '/realms': realmsResponse,
     '/health': { status: healthStatus },
     '/status': connectorStatus
   })
 }
 
 describe('main realm provider', () => {
-  it('reports the user count from Pulse /about and a 200 /health as healthy', async () => {
-    const fetch = pulseFetch({ status: packAbout.status, json: () => Promise.resolve(packAbout.body) }, packHealth.status)
+  it('reports the MAIN realm peers from Pulse /realms and a 200 /health as healthy', async () => {
+    const fetch = pulseFetch(
+      { status: packRealms.status, json: () => Promise.resolve(packRealms.body) },
+      packHealth.status
+    )
 
     const provider = await createMainRealmProviderComponent({ config: makeConfig(), fetch })
     const status = await provider.getStatus()
 
-    expect(fetch.fetch).toHaveBeenCalledWith(`${PULSE_URL}/about`, expect.anything())
+    expect(fetch.fetch).toHaveBeenCalledWith(`${PULSE_URL}/realms`, expect.anything())
     expect(fetch.fetch).toHaveBeenCalledWith(`${PULSE_URL}/health`, expect.anything())
     expect(status.healthy).toBe(true)
-    expect(status.userCount).toBe(packAbout.body.userCount)
-    expect(status.userCount).toBe(5)
+    expect(status.userCount).toBe(mainPeers)
+    expect(status.userCount).toBe(4)
     expect(status.realmName).toBe('main')
   })
 
-  it('reports 0 users when Pulse /about answers a body with no userCount', async () => {
-    const fetch = pulseFetch({ json: () => Promise.resolve({}) })
+  it('reports 0 users when Pulse /realms has no main entry', async () => {
+    const fetch = pulseFetch({ json: () => Promise.resolve({ realms: [{ name: 'cozyfarm.dcl.eth', peers: 1 }] }) })
 
     const provider = await createMainRealmProviderComponent({ config: makeConfig(), fetch })
     const status = await provider.getStatus()
 
-    // A malformed body must not throw into the getStatus catch: healthy still comes from /health.
+    // A body missing the main entry must not throw into the getStatus catch: healthy still comes
+    // from /health.
     expect(status.healthy).toBe(true)
     expect(status.userCount).toBe(0)
   })
 
-  it('never reads the retired /realms endpoint', async () => {
-    const fetch = pulseFetch({ json: () => Promise.resolve(packAbout.body) })
+  it('never reads the retired /about endpoint', async () => {
+    const fetch = pulseFetch({ json: () => Promise.resolve(packRealms.body) })
 
     const provider = await createMainRealmProviderComponent({ config: makeConfig(), fetch })
     await provider.getStatus()
 
     const urls = fetch.fetch.mock.calls.map((call: any[]) => String(call[0]))
-    expect(urls.some((url: string) => url.endsWith('/realms'))).toBe(false)
+    expect(urls.some((url: string) => url.endsWith('/about'))).toBe(false)
   })
 
   it('reports unhealthy when Pulse /health is not 200, keeping the user count', async () => {
-    const fetch = pulseFetch({ json: () => Promise.resolve(packAbout.body) }, 503)
+    const fetch = pulseFetch({ json: () => Promise.resolve(packRealms.body) }, 503)
 
     const provider = await createMainRealmProviderComponent({ config: makeConfig(), fetch })
     const status = await provider.getStatus()
 
     expect(status.healthy).toBe(false)
-    expect(status.userCount).toBe(packAbout.body.userCount)
+    expect(status.userCount).toBe(mainPeers)
   })
 
   it('still points clients at the ws-connector adapter', async () => {
-    const fetch = pulseFetch({ json: () => Promise.resolve(packAbout.body) })
+    const fetch = pulseFetch({ json: () => Promise.resolve(packRealms.body) })
 
     const provider = await createMainRealmProviderComponent({ config: makeConfig(), fetch })
     const status = await provider.getStatus()
@@ -127,7 +132,7 @@ describe('main realm provider', () => {
   })
 
   it('exposes the main realm name without a round trip, so /hot-scenes can label it', async () => {
-    const fetch = pulseFetch({ json: () => Promise.resolve(packAbout.body) })
+    const fetch = pulseFetch({ json: () => Promise.resolve(packRealms.body) })
 
     const provider = await createMainRealmProviderComponent({ config: makeConfig(), fetch })
 
@@ -136,13 +141,13 @@ describe('main realm provider', () => {
   })
 
   it('bounds both Pulse reads with the same 5 second deadline', async () => {
-    const fetch = pulseFetch({ json: () => Promise.resolve(packAbout.body) })
+    const fetch = pulseFetch({ json: () => Promise.resolve(packRealms.body) })
 
     const provider = await createMainRealmProviderComponent({ config: makeConfig(), fetch })
     await provider.getStatus()
 
     const deadline = { timeout: 5000, abortController: expect.any(AbortController) }
-    expect(fetch.fetch).toHaveBeenCalledWith(`${PULSE_URL}/about`, deadline)
+    expect(fetch.fetch).toHaveBeenCalledWith(`${PULSE_URL}/realms`, deadline)
     expect(fetch.fetch).toHaveBeenCalledWith(`${PULSE_URL}/health`, deadline)
   })
 
@@ -190,7 +195,7 @@ describe('main realm provider', () => {
     const cancel = jest.fn(() => Promise.resolve())
     const fetch = {
       fetch: jest.fn((url: string) => {
-        if (url.endsWith('/about')) {
+        if (url.endsWith('/realms')) {
           return Promise.reject(new Error('ECONNRESET'))
         }
         if (url.endsWith('/health')) {
@@ -205,7 +210,7 @@ describe('main realm provider', () => {
 
     expect(status.healthy).toBe(false)
     expect(status.userCount).toBe(0)
-    // Promise.all abandons the /health response when /about rejects, and undici keeps that
+    // Promise.all abandons the /health response when /realms rejects, and undici keeps that
     // socket pinned until GC. The body must be cancelled instead.
     expect(cancel).toHaveBeenCalledTimes(1)
   })

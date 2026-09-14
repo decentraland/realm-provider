@@ -23,7 +23,7 @@
 
 - Catalyst Network: Queries available Catalyst nodes for realm information
 - Archipelago Workers: Runs the ws-connector clients are pointed at as the MAIN realm's comms adapter
-- Pulse: The only source of online-player information — `/about` (MAIN realm user count) and `/health` (liveness)
+- Pulse: The only source of online-player information — `/realms` (MAIN realm user count, the `main` entry's `peers`) and `/health` (liveness)
 - comms-gatekeeper: `/hot-scenes`, proxied with the MAIN realm added to each entry's `realms`
 
 **Key Concepts:**
