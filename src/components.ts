@@ -12,7 +12,7 @@ import { createCatalystsProvider } from './adapters/realm-provider'
 import { createFetchComponent } from '@dcl/fetch-component'
 import { createMainRealmProviderComponent } from './adapters/main-realm-provider'
 import { createContentComponent } from './adapters/content'
-import { requirePresenceSourceConfig } from './logic/presence-source'
+import { requireHttpUrl } from './logic/config-validation'
 
 // Initialize all the components of the app
 export async function initComponents(): Promise<AppComponents> {
@@ -20,8 +20,10 @@ export async function initComponents(): Promise<AppComponents> {
   const metrics = await createMetricsComponent(metricDeclarations, { config })
   const logs = await createLogComponent({ metrics })
 
-  // Fail here, not on the first request, when PRESENCE_SOURCE=pulse is missing its URLs.
-  await requirePresenceSourceConfig(config, logs)
+  // Pulse and comms-gatekeeper are the only sources of online-player information: fail here, not
+  // on the first request, when either is missing or malformed.
+  await requireHttpUrl(config, 'PULSE_URL')
+  await requireHttpUrl(config, 'COMMS_GATEKEEPER_URL')
 
   const server = await createServerComponent<GlobalContext>(
     { config, logs },
@@ -34,7 +36,7 @@ export async function initComponents(): Promise<AppComponents> {
   const statusChecks = await createStatusCheckComponent({ server, config })
   const fetch = createFetchComponent()
   const catalystsProvider = await createCatalystsProvider({ logs, fetch, config })
-  const mainRealmProvider = await createMainRealmProviderComponent({ logs, fetch, config })
+  const mainRealmProvider = await createMainRealmProviderComponent({ fetch, config })
   const content = await createContentComponent({ fetch, config })
 
   await instrumentHttpServerWithPromClientRegistry({ metrics, server, config, registry: metrics.registry! })
