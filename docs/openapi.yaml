@@ -380,8 +380,8 @@ components:
     GatekeeperWarming:
       type: object
       description: |
-        The body comms-gatekeeper answers while its presence map is priming, passed through verbatim
-        by `GET /hot-scenes` in `pulse` mode.
+        The body comms-gatekeeper answers while its presence map is priming, passed through
+        verbatim by `GET /hot-scenes`.
       required:
         - ok
         - error
