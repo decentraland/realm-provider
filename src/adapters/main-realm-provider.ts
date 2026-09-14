@@ -91,9 +91,18 @@ export async function createMainRealmProviderComponent({
         throw new Error(`/realms returned ${realmsResponse.status} for ${pulseUrl}`)
       }
 
-      // Defaulted at every hop: a body without `realms`, or an entry without `peers`, means no
-      // Genesis City peers — never a TypeError that would degrade the realm to unhealthy.
-      const { realms = [] } = ((await realmsResponse.json()) ?? {}) as { realms?: PulseRealm[] }
+      // A 200 whose body is not shaped like `{ realms: [...] }` (an empty body, a non-JSON error
+      // page a proxy substituted, an object missing the field entirely, a `realms` that is not an
+      // array) is an upstream contract break, not "zero Genesis City peers" — it must fail the
+      // same way a non-200 does, not silently report a healthy realm with a stale count. A
+      // well-shaped `{ realms: [] }`, or a `realms` entry missing `peers`/`name`, is NOT malformed:
+      // each hop below is defaulted, so it yields 0 peers instead of a TypeError.
+      const body = (await realmsResponse.json()) as unknown
+      if (!body || typeof body !== 'object' || Array.isArray(body) || !Array.isArray((body as any).realms)) {
+        throw new Error(`/realms returned a body that is not { realms: [...] } for ${pulseUrl}`)
+      }
+
+      const { realms } = body as { realms: PulseRealm[] }
       const userCount = realms.find((realm) => realm?.name === realmName)?.peers ?? 0
 
       return { healthy: healthResult.value.status === 200, userCount, adapter, realmName }

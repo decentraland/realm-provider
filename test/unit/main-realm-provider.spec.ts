@@ -88,6 +88,61 @@ describe('main realm provider', () => {
     expect(status.userCount).toBe(0)
   })
 
+  it('degrades to an unhealthy realm with no users when Pulse /realms answers a non-200 status', async () => {
+    // F2 (review round 1 major 2): a non-200 /realms must fail into the getStatus catch — never a
+    // healthy realm with a stale or zeroed count.
+    const fetch = pulseFetch({ status: 500, ok: false, json: () => Promise.resolve(packRealms.body) })
+
+    const provider = await createMainRealmProviderComponent({ config: makeConfig(), fetch })
+    const status = await provider.getStatus()
+
+    expect(status.healthy).toBe(false)
+    expect(status.userCount).toBe(0)
+  })
+
+  it('degrades to an unhealthy realm with no users when Pulse /realms answers a body that cannot be parsed as JSON', async () => {
+    // An HTML error page from an intermediary (a load balancer, say) answering 200 with an
+    // unparsable body must not surface as a healthy realm either.
+    const fetch = pulseFetch({
+      json: () => Promise.reject(new SyntaxError('Unexpected token < in JSON at position 0'))
+    })
+
+    const provider = await createMainRealmProviderComponent({ config: makeConfig(), fetch })
+    const status = await provider.getStatus()
+
+    expect(status.healthy).toBe(false)
+    expect(status.userCount).toBe(0)
+  })
+
+  it.each([
+    ['an array instead of an object', []],
+    ['an object with no realms field', {}],
+    ['a realms field that is not an array', { realms: 'nope' }],
+    ['null', null]
+  ])('degrades to an unhealthy realm with no users when Pulse /realms answers %s', async (_label, body) => {
+    // Distinct from "no main entry" above: this body does not even have the shape
+    // `{ realms: [...] }`, so it is an upstream contract break, not "zero Genesis City peers".
+    const fetch = pulseFetch({ json: () => Promise.resolve(body) })
+
+    const provider = await createMainRealmProviderComponent({ config: makeConfig(), fetch })
+    const status = await provider.getStatus()
+
+    expect(status.healthy).toBe(false)
+    expect(status.userCount).toBe(0)
+  })
+
+  it('does not throw when Pulse /realms answers a well-shaped but empty realms array', async () => {
+    // {realms: []} IS the shape the contract describes — just no realms with peers. Must not be
+    // confused with the malformed-shape cases above.
+    const fetch = pulseFetch({ json: () => Promise.resolve({ realms: [] }) })
+
+    const provider = await createMainRealmProviderComponent({ config: makeConfig(), fetch })
+    const status = await provider.getStatus()
+
+    expect(status.healthy).toBe(true)
+    expect(status.userCount).toBe(0)
+  })
+
   it('never reads the retired /about endpoint', async () => {
     const fetch = pulseFetch({ json: () => Promise.resolve(packRealms.body) })
 
