@@ -226,4 +226,32 @@ describe('main realm provider', () => {
     await expect(createMainRealmProviderComponent({ config, fetch })).rejects.toThrow(/PULSE_URL/)
     expect(fetch.fetch).not.toHaveBeenCalled()
   })
+
+  it.each([
+    ['empty', ''],
+    ['schemeless', 'pulse.example.com'],
+    ['a non-http(s) scheme', 'ftp://pulse.example.com']
+  ])('fails at component creation when PULSE_URL is %s', async (_label, badUrl) => {
+    // requireHttpUrl is the guard, not a plain requireString: a malformed PULSE_URL must fail
+    // component creation exactly like a missing one, naming the key, instead of reaching a fetch
+    // as an unparsable-URL runtime error on the first request.
+    const config = createConfigComponent({
+      ARCHIPELAGO_WS_CONNECTOR_URL: WS_CONNECTOR_URL,
+      PULSE_URL: badUrl
+    })
+    const fetch = makeFetch({})
+
+    await expect(createMainRealmProviderComponent({ config, fetch })).rejects.toThrow(/PULSE_URL/)
+    expect(fetch.fetch).not.toHaveBeenCalled()
+  })
+
+  it('accepts a well-formed https PULSE_URL at component creation', async () => {
+    const config = createConfigComponent({
+      ARCHIPELAGO_WS_CONNECTOR_URL: WS_CONNECTOR_URL,
+      PULSE_URL: 'https://pulse.example.com'
+    })
+    const fetch = makeFetch({})
+
+    await expect(createMainRealmProviderComponent({ config, fetch })).resolves.toBeDefined()
+  })
 })

@@ -2,6 +2,7 @@ import { IHttpServerComponent } from '@dcl/core-commons'
 import type { ILoggerComponent } from '@well-known-components/interfaces'
 import { HandlerContextWithPath, ServiceUnavailableError } from '../../types'
 import { drainResponse } from '../../logic/fetch-utils'
+import { requireHttpUrl } from '../../logic/config-validation'
 
 // How long we wait for comms-gatekeeper before falling back to whatever we have cached. The
 // deadline covers the whole exchange, the body read included.
@@ -165,8 +166,11 @@ async function fetchFromGatekeeper(
  * passes through as `503` with its body; a network error or elapsed deadline answers `503` too.
  */
 async function proxyHotScenes(components: HotScenesComponents): Promise<HotScenesResponse> {
-  // Also read at startup (see components.ts), so this cannot fail per request.
-  const gatekeeperUrl = await components.config.requireString('COMMS_GATEKEEPER_URL')
+  // requireHttpUrl, not requireString: components.ts already validates this at boot, but reading
+  // it the same way here means a future edit that drops the boot check still fails loudly, naming
+  // the key, instead of an unparsable URL throwing per request as an opaque 500 (error-handler.ts)
+  // rather than the documented 503.
+  const gatekeeperUrl = await requireHttpUrl(components.config, 'COMMS_GATEKEEPER_URL')
 
   if (gatekeeperCache && Date.now() - gatekeeperCache.cachedAt < GATEKEEPER_CACHE_TTL_MS) {
     return { body: gatekeeperCache.body }

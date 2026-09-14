@@ -1,5 +1,6 @@
 import { AppComponents } from '../types'
 import { drainResponse } from '../logic/fetch-utils'
+import { requireHttpUrl } from '../logic/config-validation'
 
 /** One entry of Pulse `GET /realms`: realm names are lowercase, `main` is Genesis City. Deliberately
  * NOT `/about`: its `userCount` totals every realm (worlds and local scenes included), which would
@@ -46,7 +47,10 @@ export async function createMainRealmProviderComponent({
   const adapter = `archipelago:archipelago:${wsConnectorUrl.replace(/^http/, 'ws')}/ws`
   const realmName = 'main'
 
-  const pulseUrl = await config.requireString('PULSE_URL')
+  // requireHttpUrl, not requireString: components.ts already validates this at boot, but reading
+  // it the same way here means a future edit that drops the boot check still fails loudly here,
+  // naming the key, instead of reaching an unparsable URL as a per-request fetch error.
+  const pulseUrl = await requireHttpUrl(config, 'PULSE_URL')
 
   // Pulse splits what the retired archipelago-stats status endpoint used to answer in one shot:
   // /realms carries the per-realm peer counts, /health carries liveness (200 == healthy).

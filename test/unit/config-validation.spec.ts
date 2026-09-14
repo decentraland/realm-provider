@@ -37,4 +37,16 @@ describe('requireHttpUrl', () => {
 
     await expect(requireHttpUrl(config, 'SOME_URL')).rejects.toThrow(/SOME_URL/)
   })
+
+  it('rejects an empty string (a placeholder that would defeat the boot check)', async () => {
+    const config = createConfigComponent({ SOME_URL: '' })
+
+    await expect(requireHttpUrl(config, 'SOME_URL')).rejects.toThrow(/SOME_URL/)
+  })
+
+  it('rejects a value with leading or trailing whitespace', async () => {
+    const config = createConfigComponent({ SOME_URL: ' https://example.com ' })
+
+    await expect(requireHttpUrl(config, 'SOME_URL')).rejects.toThrow(/SOME_URL/)
+  })
 })

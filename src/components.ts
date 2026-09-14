@@ -17,13 +17,17 @@ import { requireHttpUrl } from './logic/config-validation'
 // Initialize all the components of the app
 export async function initComponents(): Promise<AppComponents> {
   const config = await createDotEnvConfigComponent({ path: ['.env.default', '.env'] })
-  const metrics = await createMetricsComponent(metricDeclarations, { config })
-  const logs = await createLogComponent({ metrics })
 
-  // Pulse and comms-gatekeeper are the only sources of online-player information: fail here, not
-  // on the first request, when either is missing or malformed.
+  // Pulse and comms-gatekeeper are the only sources of online-player information: fail here,
+  // before any other component does real work (a metrics timer, a DAO contract lookup), when
+  // either is missing or malformed. `main-realm-provider.ts` and `hot-scenes-handler.ts` call the
+  // same validator for their own read, so dropping either line here still fails loudly — just
+  // later than boot — instead of silently letting a bad URL through.
   await requireHttpUrl(config, 'PULSE_URL')
   await requireHttpUrl(config, 'COMMS_GATEKEEPER_URL')
+
+  const metrics = await createMetricsComponent(metricDeclarations, { config })
+  const logs = await createLogComponent({ metrics })
 
   const server = await createServerComponent<GlobalContext>(
     { config, logs },

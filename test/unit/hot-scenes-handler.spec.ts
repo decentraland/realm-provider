@@ -1,5 +1,6 @@
 import { readFileSync } from 'fs'
 import { join } from 'path'
+import { createConfigComponent } from '@well-known-components/env-config-provider'
 import type { hotScenesHandler as HotScenesHandler } from '../../src/controllers/handlers/hot-scenes-handler'
 import { MainRealmProviderComponent } from '../../src/adapters/main-realm-provider'
 
@@ -380,6 +381,37 @@ describe('hot-scenes handler', () => {
     await expect(executeHandler(handler, makeMainRealm(true), fetch, makeConfig())).rejects.toBeInstanceOf(
       ServiceUnavailableError
     )
+  })
+
+  it.each([
+    ['missing', undefined],
+    ['empty', ''],
+    ['schemeless', 'comms-gatekeeper.example.com'],
+    ['a non-http(s) scheme', 'ftp://comms-gatekeeper.example.com']
+  ])('rejects the request, naming the key, when COMMS_GATEKEEPER_URL is %s', async (_label, badValue) => {
+    // requireHttpUrl is the guard, not a plain requireString: components.ts validates this at
+    // boot, but reading it the same way here means a future edit that drops the boot check still
+    // fails loudly, naming the key, instead of throwing an unparsable-URL TypeError that the error
+    // middleware turns into an opaque 500 (see error-handler.ts) rather than the documented 503.
+    const handler = loadHandler()
+    const config = createConfigComponent(badValue === undefined ? {} : { COMMS_GATEKEEPER_URL: badValue })
+    const fetch = makeFetch(() => ({ json: () => Promise.resolve([]) }))
+
+    await expect(executeHandler(handler, makeMainRealm(true), fetch as any, config)).rejects.toThrow(
+      /COMMS_GATEKEEPER_URL/
+    )
+    expect(fetch.fetch).not.toHaveBeenCalled()
+  })
+
+  it('accepts a well-formed https COMMS_GATEKEEPER_URL', async () => {
+    const handler = loadHandler()
+    const config = createConfigComponent({ COMMS_GATEKEEPER_URL: GATEKEEPER_URL })
+    const fetch = makeFetch(() => ({ json: () => Promise.resolve(gatekeeperArray()) }))
+
+    const response = await executeHandler(handler, makeMainRealm(true), fetch, config)
+
+    expect(fetch.fetch).toHaveBeenCalledWith(`${GATEKEEPER_URL}/hot-scenes`, expect.anything())
+    expect(response.status).toBeUndefined()
   })
 
   it('never asks for a 503 pass-through to serve an empty array as if it were data', async () => {
