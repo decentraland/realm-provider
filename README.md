@@ -136,8 +136,10 @@ yarn start
 
 Deploy this service only after comms-gatekeeper is serving `/hot-scenes` from its presence map and
 Pulse's HTTP surface (`/realms`, `/health`) is up in the target environment. Deploying before that
-leaves `/hot-scenes` answering `503` and the MAIN realm's `usersCount` at `0` — the endpoints have
-nothing to read yet.
+does not degrade gracefully to zeros: `/hot-scenes` answers `503` (there is nothing cached yet),
+`main` is missing from `/realms` entirely (it is only listed while healthy), and `/main/about`
+answers `acceptingUsers: false` — a client reads that as "do not connect to this realm", not
+"nobody is online here".
 
 Rollback is deploying the previous image. That image aggregates online-player information from
 archipelago-stats, so archipelago-stats must still be running in the target environment for a
