@@ -22,17 +22,19 @@
 **External Dependencies:**
 
 - Catalyst Network: Queries available Catalyst nodes for realm information
-- Archipelago Workers: MAIN realm status and configuration (`PRESENCE_SOURCE=archipelago`)
-- Stats Service: Parcel peer counts for hot scenes, and `/core-status` for the MAIN realm user count (`PRESENCE_SOURCE=archipelago`)
-- Pulse: `/realms` (MAIN realm peer count, Genesis City only) and `/health` (liveness) (`PRESENCE_SOURCE=pulse`)
-- comms-gatekeeper: `/hot-scenes`, proxied with the MAIN realm added to each entry's `realms` (`PRESENCE_SOURCE=pulse`)
+- Archipelago Workers: Runs the ws-connector clients are pointed at as the MAIN realm's comms adapter
+- Pulse: The only source of online-player information — `/about` (MAIN realm user count) and `/health` (liveness)
+- comms-gatekeeper: `/hot-scenes`, proxied with the MAIN realm added to each entry's `realms`
 
 **Key Concepts:**
 
 - **Realm**: A communication/render configuration specifying which Catalyst, Lambdas, and comms services to use
 - **MAIN Realm**: Default realm managed by Archipelago workers for Genesis City
 - **Hot Scenes**: Popular/active scenes for user discovery
-- **Presence source**: `PRESENCE_SOURCE` (`archipelago` | `pulse`) selects where online-player information comes from. It is a rollback switch and defaults to `archipelago`, today's behaviour.
+- **Online-player information**: Pulse and comms-gatekeeper are the only sources — no configurable
+  switch, no fallback. `PULSE_URL` and `COMMS_GATEKEEPER_URL` are required at boot; the process
+  fails to start when either is missing or is not an absolute `http(s)` URL. Rollback is deploying
+  the previous image, which aggregates from archipelago-stats and needs it running.
 
 **Scope and Responsibilities — What Realm Provider Is NOT:**
 

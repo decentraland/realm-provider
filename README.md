@@ -16,6 +16,7 @@ This server interacts with the Catalyst Network, Archipelago Workers, and the Ca
   - [Installation](#installation)
   - [Configuration](#configuration)
   - [Running the Service](#running-the-service)
+  - [Deployment](#deployment)
 - [Testing](#testing)
 - [AI Agent Context](#ai-agent-context)
 
@@ -23,7 +24,7 @@ This server interacts with the Catalyst Network, Archipelago Workers, and the Ca
 
 - **Realm Discovery & Selection**: Discover all available Catalyst realms with real-time user counts, automatic health monitoring, and filtering of catalyst nodes
 - **Geo-Location Optimization**: Intelligent content server selection based on user geographic location using Cloudflare's CF-IPCountry header and Haversine distance calculation to route users to the nearest healthy Catalyst node
-- **Hot Scenes Tracking**: Real-time list of the most popular scenes, either aggregated from Archipelago stats or proxied from comms-gatekeeper, depending on `PRESENCE_SOURCE`
+- **Hot Scenes Tracking**: Real-time list of the most popular scenes, proxied from comms-gatekeeper's presence map
 - **Main Realm Services**: Comprehensive service information for the main realm managed by Archipelago Workers, including content server, communications, BFF, and Lambdas configurations
 - **Catalyst Version Filtering**: Automatic filtering to prefer updated Catalyst nodes over outdated versions
 - **Health Monitoring**: Service status and version information with health check endpoints for integration monitoring
@@ -34,9 +35,9 @@ This server interacts with the Catalyst Network, Archipelago Workers, and the Ca
 This service interacts with the following services:
 
 - **[Catalyst Network](https://github.com/decentraland/catalyst)**: Queries available Catalyst nodes for realm information, health status, and user counts via the `/about` endpoint
-- **[Archipelago Workers](https://github.com/decentraland/archipelago-workers)**: Provides the default MAIN realm status and configuration for Genesis City connections (`PRESENCE_SOURCE=archipelago`)
-- **Pulse**: Source of online-player information — `/realms` for the MAIN realm (Genesis City) peer count and `/health` for its liveness (`PRESENCE_SOURCE=pulse`)
-- **[comms-gatekeeper](https://github.com/decentraland/comms-gatekeeper)**: Computes `/hot-scenes` from its presence map; this service proxies it, adding the MAIN realm to each entry's `realms` distribution (`PRESENCE_SOURCE=pulse`)
+- **[Archipelago Workers](https://github.com/decentraland/archipelago-workers)**: Runs the ws-connector that clients are pointed at as the MAIN realm's comms adapter
+- **Pulse**: The only source of online-player information — `/about` for the MAIN realm user count and `/health` for its liveness
+- **[comms-gatekeeper](https://github.com/decentraland/comms-gatekeeper)**: Computes `/hot-scenes` from its presence map; this service proxies it, adding the MAIN realm to each entry's `realms` distribution
 - **[Catalyst DAO Smart Contract](https://github.com/decentraland/catalyst-contracts)**: Retrieves the list of approved Catalyst nodes from the DAO on Ethereum mainnet
 - **Ethereum RPC**: Connects to Ethereum mainnet (or sepolia for testing) via `https://rpc.decentraland.org` to query the Catalyst DAO contract
 - **Cloudflare**: Uses CF-IPCountry header for geo-location based routing
@@ -81,28 +82,27 @@ The service uses environment variables for configuration.
 Create a `.env` file in the root directory containing the environment variables for the service to run.
 Use the `.env.default` variables as an example.
 
-#### Presence source
+#### Online-player information
 
-`PRESENCE_SOURCE` selects where online-player information comes from. It is a rollback switch: it
-defaults to `archipelago`, so a deploy with no config change behaves exactly as before.
+Pulse and comms-gatekeeper are the only sources of online-player information: there is no
+configurable presence source, no fallback and no shadow mode. `PULSE_URL` and
+`COMMS_GATEKEEPER_URL` are required at boot (an absolute `http(s)` URL); startup fails immediately
+when either is missing or malformed, rather than answering 500s per request once traffic arrives.
+Rollback is deploying the previous image, which requires archipelago-stats to still be running (see
+[Deployment](#deployment) below).
 
-| Variable | Default | Used when | Description |
-| --- | --- | --- | --- |
-| `PRESENCE_SOURCE` | `archipelago` | always | `archipelago` or `pulse`. Any other value is read as `archipelago`. |
-| `ARCHIPELAGO_STATS_URL` | `https://archipelago-stats.decentraland.org` | `archipelago` | `/parcels` feeds `/hot-scenes`; `/core-status` feeds the MAIN realm user count. |
-| `PULSE_URL` | _(none — required when `PRESENCE_SOURCE=pulse`)_ | `pulse` | `/realms` gives the MAIN realm peer count (`realms[name == 'main'].peers`, i.e. Genesis City only), `/health` gives its liveness (200 == healthy). Both reads share one 5 s deadline; past it the realm is reported unhealthy with 0 users, as an unreachable presence source is today. |
-| `COMMS_GATEKEEPER_URL` | `https://comms-gatekeeper.decentraland.org` | `pulse` | `/hot-scenes` is proxied (5 s deadline, 10 s cache). |
-| `ARCHIPELAGO_WS_CONNECTOR_URL` | `https://archipelago-ws-connector.decentraland.org` | always | Advertised to clients as the MAIN realm comms adapter. |
+| Variable | Default | Description |
+| --- | --- | --- |
+| `PULSE_URL` | _(none — required)_ | `/about` gives the MAIN realm user count (`userCount`), `/health` gives its liveness (200 == healthy). Both reads share one 5 s deadline; past it the realm is reported unhealthy with 0 users. |
+| `COMMS_GATEKEEPER_URL` | `https://comms-gatekeeper.decentraland.org` | `/hot-scenes` is proxied (5 s deadline, 10 s cache). |
+| `ARCHIPELAGO_WS_CONNECTOR_URL` | `https://archipelago-ws-connector.decentraland.org` | Advertised to clients as the MAIN realm comms adapter. Unrelated to online-player counts. |
 
-With `PRESENCE_SOURCE=pulse`, startup fails when either `PULSE_URL` or `COMMS_GATEKEEPER_URL` is
-missing, rather than answering 500s per request.
-
-In `pulse` mode `GET /hot-scenes` proxies `${COMMS_GATEKEEPER_URL}/hot-scenes`. Every field the
-gatekeeper answers passes through untouched, and this service adds the `realms` distribution its own
-contract carries — a single entry for the MAIN realm with the scene's `usersTotalCount`, which is
-what `places` reads. The upstream call has a 5 second deadline that covers the body read as well as
-the headers; successful answers are cached for 10 seconds, and requests that arrive during a cache
-miss share one upstream call instead of each making their own.
+`GET /hot-scenes` proxies `${COMMS_GATEKEEPER_URL}/hot-scenes`. Every field the gatekeeper answers
+passes through untouched, and this service adds the `realms` distribution its own contract carries —
+a single entry for the MAIN realm with the scene's `usersTotalCount`, which is what `places` reads.
+The upstream call has a 5 second deadline that covers the body read as well as the headers;
+successful answers are cached for 10 seconds, and requests that arrive during a cache miss share one
+upstream call instead of each making their own.
 
 While the gatekeeper is warming (`503`) or unreachable, a cached array younger than 60 seconds is
 served with an `X-Cache: stale` header (and a warning log). Beyond that age the upstream status is
@@ -131,6 +131,17 @@ To run the service in development mode:
 yarn build
 yarn start
 ```
+
+### Deployment
+
+Deploy this service only after comms-gatekeeper is serving `/hot-scenes` from its presence map and
+Pulse's HTTP surface (`/about`, `/health`) is up in the target environment. Deploying before that
+leaves `/hot-scenes` answering `503` and the MAIN realm's `usersCount` at `0` — the endpoints have
+nothing to read yet.
+
+Rollback is deploying the previous image. That image aggregates online-player information from
+archipelago-stats, so archipelago-stats must still be running in the target environment for a
+rollback to serve real data.
 
 ## Testing
 

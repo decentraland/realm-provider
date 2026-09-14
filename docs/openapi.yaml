@@ -151,21 +151,18 @@ paths:
     get:
       summary: Get hot scenes
       description: |
-        Returns up to 100 scenes sorted by total user count, as a bare array.
+        Returns up to 100 scenes sorted by total user count, as a bare array. This service proxies
+        `COMMS_GATEKEEPER_URL/hot-scenes`, the only source: comms-gatekeeper computes the list from
+        its presence map. Every field comms-gatekeeper answers is passed through untouched
+        (`creator`, `projectId` and `description` included) and a single-entry `realms` distribution
+        for the main realm is added, so the entry shape stays the one described below. The upstream
+        call has a 5 second deadline (body read included) and successful answers are cached for 10
+        seconds; requests arriving during a cache miss share one upstream call.
 
-        The source depends on the `PRESENCE_SOURCE` environment variable:
-          * `archipelago` (default): scenes are aggregated from `ARCHIPELAGO_STATS_URL/parcels`, and
-            each entry's `realms` distribution is computed per realm.
-          * `pulse`: `COMMS_GATEKEEPER_URL/hot-scenes` is proxied. Every field comms-gatekeeper
-            answers is passed through untouched (`creator`, `projectId` and `description` included)
-            and a single-entry `realms` distribution for the main realm is added, so the entry shape
-            stays the one described below. The upstream call has a 5 second deadline (body read
-            included) and successful answers are cached for 10 seconds; requests arriving during a
-            cache miss share one upstream call.
-
-            While comms-gatekeeper is warming up (`503`) or unreachable, a cached array less than
-            60 seconds old is served with an `X-Cache: stale` response header. Older than that, or
-            with nothing cached, the failure is reported (see the `503` response).
+        While comms-gatekeeper is warming up (`503`) or unreachable, a cached array less than
+        60 seconds old is served with an `X-Cache: stale` response header. Older than that, or with
+        nothing cached, the failure is reported (see the `503` response) — a network error never
+        falls back to an empty list, which would look like nobody is online rather than an outage.
       operationId: getHotScenes
       security: []
       tags:
@@ -206,18 +203,18 @@ paths:
                 $ref: '#/components/schemas/Error'
         '502':
           description: |
-            Only when `PRESENCE_SOURCE=pulse`: comms-gatekeeper answered a 2xx whose body is not an
-            array, so it cannot be served as this endpoint's response. The body is neither cached
-            nor passed through; a cached array younger than 60 seconds is served in its place if
-            there is one (with `X-Cache: stale`), otherwise this status.
+            comms-gatekeeper answered a 2xx whose body is not an array, so it cannot be served as
+            this endpoint's response. The body is neither cached nor passed through; a cached array
+            younger than 60 seconds is served in its place if there is one (with `X-Cache: stale`),
+            otherwise this status.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
         '503':
           description: |
-            Only when `PRESENCE_SOURCE=pulse`: comms-gatekeeper is still priming its presence map, or
-            it could not be reached, and there is no cached array younger than 60 seconds.
+            comms-gatekeeper is still priming its presence map, or it could not be reached, and
+            there is no cached array younger than 60 seconds.
 
             Two bodies are possible. When comms-gatekeeper answered a status of its own, that status
             and body are passed through verbatim — while it is warming that body is
@@ -306,10 +303,8 @@ components:
           type: number
           description: |
             Current number of users connected to this realm. Always 0 for third-party catalyst
-            realms, which no longer report a comms user count. For the main realm it is the number
-            of peers in Genesis City: `ARCHIPELAGO_STATS_URL/core-status` when
-            `PRESENCE_SOURCE=archipelago`, or the `main` entry of `PULSE_URL/realms` when
-            `PRESENCE_SOURCE=pulse`.
+            realms, which no longer report a comms user count. For the main realm it is
+            `PULSE_URL/about`'s `userCount`.
           example: 150
 
     HotSceneInfo:
@@ -355,8 +350,8 @@ components:
         realms:
           type: array
           description: |
-            Distribution of users across realms for this scene. With `PRESENCE_SOURCE=pulse` this is
-            always a single entry for the main realm, carrying `usersTotalCount`.
+            Distribution of users across realms for this scene. Always a single entry for the main
+            realm, carrying `usersTotalCount`.
           items:
             $ref: '#/components/schemas/SceneRealmInfo'
         thumbnail:
@@ -367,20 +362,19 @@ components:
         creator:
           type: string
           description: |
-            Scene creator, as published in the scene metadata. Only present with
-            `PRESENCE_SOURCE=pulse`, and only when comms-gatekeeper knows it.
+            Scene creator, as published in the scene metadata. Only present when comms-gatekeeper
+            knows it.
           example: Decentraland Foundation
         projectId:
           type: string
           description: |
-            Builder project id of the scene. Only present with `PRESENCE_SOURCE=pulse`, and only
-            when comms-gatekeeper knows it.
+            Builder project id of the scene. Only present when comms-gatekeeper knows it.
           example: c0137195-4c6b-4d23-af5b-457d253cdb0f
         description:
           type: string
           description: |
-            Scene description, as published in the scene metadata. Only present with
-            `PRESENCE_SOURCE=pulse`, and only when comms-gatekeeper knows it.
+            Scene description, as published in the scene metadata. Only present when
+            comms-gatekeeper knows it.
           example: Decentraland's official spawn point.
 
     GatekeeperWarming:
