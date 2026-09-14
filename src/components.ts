@@ -11,7 +11,6 @@ import { metricDeclarations } from './metrics'
 import { createCatalystsProvider } from './adapters/realm-provider'
 import { createFetchComponent } from '@dcl/fetch-component'
 import { createMainRealmProviderComponent } from './adapters/main-realm-provider'
-import { createContentComponent } from './adapters/content'
 import { requireHttpUrl } from './logic/config-validation'
 
 // Initialize all the components of the app
@@ -41,7 +40,6 @@ export async function initComponents(): Promise<AppComponents> {
   const fetch = createFetchComponent()
   const catalystsProvider = await createCatalystsProvider({ logs, fetch, config })
   const mainRealmProvider = await createMainRealmProviderComponent({ fetch, config })
-  const content = await createContentComponent({ fetch, config })
 
   await instrumentHttpServerWithPromClientRegistry({ metrics, server, config, registry: metrics.registry! })
 
@@ -53,7 +51,6 @@ export async function initComponents(): Promise<AppComponents> {
     fetch,
     metrics,
     catalystsProvider,
-    mainRealmProvider,
-    content
+    mainRealmProvider
   }
 }
