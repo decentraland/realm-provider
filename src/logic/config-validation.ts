@@ -12,7 +12,9 @@ export async function requireHttpUrl(config: IConfigComponent, key: string): Pro
   // parsing, so a value with stray whitespace (a copy-paste artifact, a YAML block scalar) would
   // otherwise pass. Reject it explicitly instead of fetching against a URL nobody intended.
   if (value !== value.trim()) {
-    throw new Error(`Configuration: ${key} must be an absolute http(s) URL, got "${value}" (has leading or trailing whitespace)`)
+    throw new Error(
+      `Configuration: ${key} must be an absolute http(s) URL, got "${value}" (has leading or trailing whitespace)`
+    )
   }
 
   let parsed: URL
