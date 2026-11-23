@@ -174,7 +174,7 @@ paths:
                       usersCount: 50
                     - serverName: catalyst-1
                       usersCount: 37
-                  thumbnail: https://content.decentraland.org/thumbnail.png
+                  thumbnail: https://peer.decentraland.org/content/contents/bafkreiexamplethumbnailhash
         '400':
           description: Bad request
           content:
@@ -311,8 +311,8 @@ components:
         thumbnail:
           type: string
           format: uri
-          description: Optional thumbnail URL for the scene
-          example: https://content.decentraland.org/thumbnail.png
+          description: Content server URL of the scene's thumbnail file. Omitted when the navmap thumbnail is not a file included in the scene.
+          example: https://peer.decentraland.org/content/contents/bafkreiexamplethumbnailhash
 
     SceneRealmInfo:
       type: object
