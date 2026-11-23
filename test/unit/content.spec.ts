@@ -1,15 +1,18 @@
+import type { IFetchComponent } from '@dcl/core-commons'
 import { Entity, EntityType } from '@dcl/schemas'
 import { createConfigComponent } from '@well-known-components/env-config-provider'
 import { IContentComponent, createContentComponent } from '../../src/adapters/content'
 
 describe('when calculating the thumbnail of a scene', () => {
   let content: IContentComponent
+  let fetch: IFetchComponent
   let scene: Entity
 
   beforeEach(async () => {
+    fetch = { fetch: jest.fn() }
     content = await createContentComponent({
       config: createConfigComponent({ CONTENT_URL: 'https://peer.example.org/content' }),
-      fetch: { fetch: jest.fn() } as any
+      fetch
     })
     scene = {
       version: 'v3',
@@ -103,7 +106,7 @@ describe('when calculating the thumbnail of a scene', () => {
     beforeEach(async () => {
       content = await createContentComponent({
         config: createConfigComponent({ CONTENT_URL: 'https://peer.example.org/content/' }),
-        fetch: { fetch: jest.fn() } as any
+        fetch
       })
       scene.metadata.display.navmapThumbnail = 'thumbnail.png'
     })
